@@ -1,0 +1,24 @@
+# Python / OS cruft
+__pycache__/
+*.py[cod]
+.DS_Store
+.ipynb_checkpoints/
+
+# SLURM job logs
+logs/
+*.out
+*.err
+
+# Large data / artifacts — these live on the cluster + HuggingFace, never in git
+data/
+repro/artifacts/
+repro/sweep/noise/
+repro/sweep/results/
+*.pkl
+*.npz
+*.npy
+*.zip
+*.pt
+*.pth
+
+# keep the curated, small text outputs (results write-ups are .md, configs are .tsv — not ignored)

@@ -8,7 +8,10 @@ import math
 import torch
 import torch.nn as nn
 from tqdm import tqdm
-from torch._six import inf
+try:
+    from torch._six import inf  # PyTorch <= 1.12
+except ImportError:
+    from torch import inf  # PyTorch >= 1.13 removed torch._six
 import pandas as pd
 from PIL import Image
 from sklearn.feature_extraction import image

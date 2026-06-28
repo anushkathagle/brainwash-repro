@@ -1,0 +1,28 @@
+# BrainWash reproduction environment — authors' stack (best for identical results)
+# Target: Penn State Roar Collab A100 nodes (NVIDIA Ampere / sm_80, CUDA 11.3).
+#
+# Install with:
+#   pip install -r repro/requirements-cu113.txt
+#
+# Rationale:
+#   * The __pycache__ shipped in the repo is cpython-310 and the code imports
+#     `torch._six`, which only exists in PyTorch <= 1.12. Python 3.10 + torch 1.12.x
+#     is therefore the stack the authors used. Running this exact stack means the
+#     original code executes with ZERO source changes and minimal numerical drift.
+#   * torch 1.12.1+cu113 ships sm_80 kernels, so it runs on A100s.
+#   * numpy is pinned < 2.0 because old torch is incompatible with the numpy 2 ABI.
+
+--extra-index-url https://download.pytorch.org/whl/cu113
+
+torch==1.12.1+cu113
+torchvision==0.13.1+cu113
+
+numpy==1.23.5
+scipy==1.10.1
+matplotlib==3.7.5
+seaborn==0.12.2
+pandas==1.5.3
+scikit-learn==1.3.2
+tqdm==4.66.5
+pillow==9.5.0
+huggingface_hub==0.25.2

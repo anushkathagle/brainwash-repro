@@ -29,6 +29,7 @@ def brainwash(pretrained_model_add, target_task_for_eval, delta=0.3, seed=0,
     pkl_file = open(model_save_name, 'rb')
     model_save_dict = pkl.load(pkl_file)
     pkl_file.close()
+    model_save_dict.setdefault('optim_name', 'sgd')  # AFEC checkpoints omit this key; victim used SGD like EWC/MAS/RWALK
 
     bs = 128 
 
@@ -204,13 +205,15 @@ def brainwash(pretrained_model_add, target_task_for_eval, delta=0.3, seed=0,
 
 
         save_name = generate_save_name(save_dict)
-        
+        out_dir = os.environ.get('BW_OUT_DIR', '.')   # write noise straight to a target dir (e.g. /storage/work), not CWD
+        os.makedirs(out_dir, exist_ok=True)
+
         #save save_dict as pkl file
-        if (epoch+1) % save_every == 0: 
+        if (epoch+1) % save_every == 0:
             if mode == 'reckless':
-                pkl.dump(save_dict, open(f'noise_{cont_method_args["method"]}_{extra_desc}_{save_name}.pkl', 'wb'))
+                pkl.dump(save_dict, open(os.path.join(out_dir, f'noise_{cont_method_args["method"]}_{extra_desc}_{save_name}.pkl'), 'wb'))
             else:
-                pkl.dump(save_dict, open(f'noise_{cont_method_args["method"]}_wcur_{w_cur}_{extra_desc}_{save_name}.pkl', 'wb'))
+                pkl.dump(save_dict, open(os.path.join(out_dir, f'noise_{cont_method_args["method"]}_wcur_{w_cur}_{extra_desc}_{save_name}.pkl'), 'wb'))
 
 
 
