@@ -145,25 +145,25 @@ class Appr(object):
             #save log for current task & old tasks at every epoch
 
             # Adapt lr
-            # if valid_loss < best_loss:
-            #     best_loss = valid_loss
-            #     best_model = utils.get_model(self.model)
-            #     patience = self.lr_patience
-            #     print(' *', end='')
+            if valid_loss < best_loss:
+                best_loss = valid_loss
+                best_model = utils.get_model(self.model)
+                patience = self.lr_patience
+                print(' *', end='')
+            else:
+                patience -= 1
+                if patience <= 0:
+                    lr /= self.lr_factor
+                    print(' lr={:.1e}'.format(lr), end='')
+                    if lr < self.lr_min:
+                        print()
+                    patience = self.lr_patience
+                    self.optimizer = self._get_optimizer(lr)
+                    self.optimizer_emp = self._get_optimizer_emp(lr)
+            print()
+                
+            # best_model = utils.get_model(self.model)
 
-            best_model = utils.get_model(self.model)
-
-            # else:
-            #     patience -= 1
-            #     if patience <= 0:
-            #         lr /= self.lr_factor
-            #         print(' lr={:.1e}'.format(lr), end='')
-            #         if lr < self.lr_min:
-            #             print()
-            #         patience = self.lr_patience
-            #         self.optimizer = self._get_optimizer(lr)
-            #         self.optimizer_emp = self._get_optimizer_emp(lr)
-            # print()
 
             # after pretrain in task 0, copy the PT model as empty
             if t == 0:

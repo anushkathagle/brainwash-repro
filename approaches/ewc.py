@@ -98,23 +98,23 @@ class Appr(object):
             #save log for current task & old tasks at every epoch
 
             # Adapt lr
-            # if valid_loss < best_loss:
-            #     best_loss = valid_loss
-            #     best_model = utils.get_model(self.model)
-            #     patience = self.lr_patience
-            #     print(' *', end='')
+            if valid_loss < best_loss:
+                best_loss = valid_loss
+                best_model = utils.get_model(self.model)
+                patience = self.lr_patience
+                print(' *', end='')
 
-            # else:
-            #     patience -= 1
-            #     if patience <= 0:
-            #         lr /= self.lr_factor
-            #         print(' lr={:.1e}'.format(lr), end='')
-            #         if lr < self.lr_min:
-            #             print()
-            #         patience = self.lr_patience
-            #         self.optimizer = self._get_optimizer(lr)
+            else:
+                patience -= 1
+                if patience <= 0:
+                    lr /= self.lr_factor
+                    print(' lr={:.1e}'.format(lr), end='')
+                    if lr < self.lr_min:
+                        print()
+                    patience = self.lr_patience
+                    self.optimizer = self._get_optimizer(lr)
             print()
-            best_model = utils.get_model(self.model)
+            # best_model = utils.get_model(self.model)
 
         # Restore best
         utils.set_model_(self.model, best_model)
@@ -164,6 +164,10 @@ class Appr(object):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.clipgrad)
             self.optimizer.step()
+
+            if i==0 and t>0:
+                print('  task {} epoch {} | ce={:.4f} lamb*reg={:.4f} (reg={:.6f})'.format(
+                    t, epoch, self._last_ce, self.lamb*self._last_reg, self._last_reg))
         return
 
     def eval(self,t,x,y):
@@ -204,5 +208,9 @@ class Appr(object):
             for (name,param),(_,param_old) in zip(self.model.named_parameters(),self.model_old.named_parameters()):
                 loss_reg+=torch.sum(self.fisher[name]*(param_old-param).pow(2))/2
 
-            # print('loss_reg is {}'.format(loss_reg))    
-        return self.ce(output,targets)+self.lamb*loss_reg
+            # print('loss_reg is {}'.format(loss_reg))   
+        loss_ce = self.ce(output,targets)
+        self._last_ce = float(loss_ce.data.cpu())
+        self._last_reg = float(loss_reg.data.cpu()) if t>0 else 0.0
+        return loss_ce+self.lamb*loss_reg 
+        # return self.ce(output,targets)+self.lamb*loss_reg

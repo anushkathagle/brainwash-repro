@@ -131,24 +131,25 @@ class Appr(object):
             #save log for current task & old tasks at every epoch
             
             
-            # if valid_loss < best_loss:
-            #     best_loss = valid_loss
-            #     best_model = utils.get_model(self.model)
-            #     patience = self.lr_patience
-            #     print(' *', end='')
+            if valid_loss < best_loss:
+                best_loss = valid_loss
+                best_model = utils.get_model(self.model)
+                patience = self.lr_patience
+                print(' *', end='')
 
-            best_model = utils.get_model(self.model)
 
-            # else:
-            #     patience -= 1
-            #     if patience <= 0:
-            #         lr /= self.lr_factor
-            #         print(' lr={:.1e}'.format(lr), end='')
-            #         if lr < self.lr_min:
-            #             print()
-            #         patience = self.lr_patience
-            #         self.optimizer = self._get_optimizer(lr)
+            else:
+                patience -= 1
+                if patience <= 0:
+                    lr /= self.lr_factor
+                    print(' lr={:.1e}'.format(lr), end='')
+                    if lr < self.lr_min:
+                        print()
+                    patience = self.lr_patience
+                    self.optimizer = self._get_optimizer(lr)
             print()
+            # best_model = utils.get_model(self.model)
+
         # Restore best
         utils.set_model_(self.model, best_model)
 
