@@ -50,7 +50,7 @@ Requirements beyond the base brainwash-repro environment:
     - the checkpoint 256x256_diffusion_uncond.pt downloaded locally.
 """
 
-import sys, os, time
+import sys, os, time, hashlib
 import numpy as np
 import pickle as pkl
 import utils
@@ -408,9 +408,28 @@ def main(args):
     print('[Elapsed time = {:.1f} h]'.format((time.time() - tstart) / (60 * 60)))
 
     if args.checkpoint is not None:
-        acc_mat_sace_name = args.checkpoint.split('/')[-1]
-        #remove the .pkl extension
-        acc_mat_sace_name = acc_mat_sace_name[:-4]
+        # >>> LAYER1A: use the noise DIRECTORY name (the NOISE_TAG, e.g.
+        # "mini_afec_ewc_cautious_eps0.1") instead of the raw checkpoint
+        # filename here. AFEC's pkl names encode wcur/mode/every hyperparam
+        # TWICE and run 150+ chars on their own; concatenating the purify
+        # suffix on top pushes the final path component past Linux's 255-byte
+        # NAME_MAX and np.save() crashes with ENAMETOOLONG -- AFTER an entire
+        # purify+train+eval run has already completed, losing the result.
+        # The directory name is already the canonical short identifier used
+        # everywhere else (EVAL_TAG, stage4_purify.sbatch's NOISE_TAG lookup),
+        # and since stage3.sbatch keeps only the newest pkl per directory,
+        # directory name <-> single pkl is already a 1:1 mapping elsewhere in
+        # this pipeline, so reusing it here introduces no new assumption.
+        # A hash-truncate fallback guards against any name still being too
+        # long for any reason (e.g. a very long --out_dir path on some other
+        # filesystem), so this can never crash on ENAMETOOLONG again.
+        acc_mat_sace_name = os.path.basename(os.path.dirname(os.path.abspath(args.checkpoint)))
+        if not acc_mat_sace_name or acc_mat_sace_name in ('.', '/'):
+            acc_mat_sace_name = os.path.basename(args.checkpoint)[:-4]  # .pkl stripped
+        if len(acc_mat_sace_name) > 100:
+            h = hashlib.sha1(acc_mat_sace_name.encode()).hexdigest()[:10]
+            acc_mat_sace_name = acc_mat_sace_name[:80] + '_' + h
+        # <<< LAYER1A
 
         if args.addnoise is False:
             method = 'clean'
@@ -427,8 +446,19 @@ def main(args):
 
         os.makedirs(args.out_dir, exist_ok=True)
         out_npy = os.path.join(args.out_dir, f'acc_mat_{acc_mat_sace_name}_{method}.npy')
-        np.save(out_npy, acc)
-        print(f'[LAYER1A] saved accuracy matrix -> {out_npy}')
+        # Defensive: a failure here (ENAMETOOLONG or anything else) must NEVER
+        # take the After-BWT computation / summary.tsv append down with it --
+        # those are the numbers that actually matter, and losing them after a
+        # multi-hour run to a save-path error is the exact failure this guards
+        # against. Worst case on failure: the .npy is missing but everything
+        # else (console log, summary.tsv row) still gets written.
+        try:
+            np.save(out_npy, acc)
+            print(f'[LAYER1A] saved accuracy matrix -> {out_npy}')
+        except OSError as e:
+            print(f'[LAYER1A] WARNING: failed to save accuracy matrix to {out_npy} ({e}) '
+                  f'-- continuing anyway so After BWT / summary.tsv are not lost. '
+                  f'The full per-task accuracy matrix is printed above (search "Accuracies =").')
         # <<< LAYER1A
 
 
