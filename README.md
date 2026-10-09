@@ -119,13 +119,16 @@ same but read **Gotchas → miniImageNet** first (it's slower and needs `NEPOCHS
 
 ## Patches to the upstream code (the only source changes)
 
-Everything else we added is additive under `repro/`. The three in-place patches:
+Everything else we added is additive under `repro/` (and `purevqgan/`). The in-place patches:
 
 1. **`approaches/utils.py`** — `from torch._six import inf` wrapped in try/except (PyTorch ≥1.13 compat).
 2. **`main_brainwash.py`** — `model_save_dict.setdefault('optim_name', 'sgd')` after loading the checkpoint.
    *Why:* the AFEC checkpoint is the only one missing the `optim_name` key → `KeyError` without this.
 3. **`main_brainwash.py`** — noise is saved to `$BW_OUT_DIR` (default `.`) rather than always the CWD,
    so the sweep writes the large noise `.pkl`s straight to `/storage/work` instead of the 16 GB home.
+
+4. **`main_baselines.py` + `approaches/arguments.py`**: optional `--purifier` (defense layer 1). It's a
+   no-op unless the flag is given, so undefended runs are unchanged.
 
 All CUDA logic is untouched. `git log` shows the full history (upstream commits + our reproduction work).
 
@@ -162,6 +165,13 @@ to the paper. **Next (the thesis contribution):** a defense that the victim appl
 poisoned task T, evaluated by dropping it into **stage 4** and measuring how much BWT/Acc is restored vs
 this baseline — same harness, one new knob. Natural intervention points: sanitizing/denoising the
 incoming task-T data, poison-aware regularization, or anomaly-detection/rejection before consolidation.
+
+### Defense layer 1 — PureVQ-GAN (implemented)
+A from-scratch re-implementation of **PureVQ-GAN** (Branch et al., 2025; no official code) lives in
+[`purevqgan/`](purevqgan/), hooked into stage 4 via `--purifier`. Train purifiers, run defended sweeps
+and compare to the undefended baseline with the scripts in [`repro/defense/`](repro/defense/). Read
+[`repro/defense/README_purevqgan.md`](repro/defense/README_purevqgan.md) first: it lists what follows
+the paper and which choices we made where the paper is silent.
 
 ## Credits & license
 Original method, code, and released checkpoints/inverted data by Ali Abbasi, Parsa Nooralinejad, Hamed

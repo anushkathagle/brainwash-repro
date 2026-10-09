@@ -52,6 +52,11 @@ def get_args():
 
     parser.add_argument('--clip', default=100., type=float)
     parser.add_argument('--optim', type=str, default='sgd')
+
+    # defense layer 1: PureVQ-GAN input purification of the current (possibly poisoned) task's training data
+    parser.add_argument('--purifier', default=None, type=str, help='path to a purevqgan purifier.pt')
+    parser.add_argument('--purify_passes', default=1, type=int, help='refinement passes x <- G(x) (paper eq. 4)')
+    parser.add_argument('--purify_tag', default=None, type=str, help='suffix for acc_mat output (default: purifier dir name)')
     
     args=parser.parse_args()
     return args

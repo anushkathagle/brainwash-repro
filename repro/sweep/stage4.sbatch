@@ -17,6 +17,8 @@
 #          LAMB=...,NOISE_TAG=...[,LAMB_EMP=,LASTTASK=,TASKNUM=] stage4.sbatch
 # Required: EVAL_TAG VARIANT(clean|uniform|ours) EXPERIMENT APPROACH LAMB NOISE_TAG
 # Optional: LAMB_EMP(-) LASTTASK(9) TASKNUM(10) NEPOCHS(20) ENV_NAME(brainwash)
+# Defense (PureVQ-GAN, see repro/defense/README_purevqgan.md):
+#           PURIFIER(path to purifier.pt; unset = undefended) PURIFY_PASSES(1) RESULTS_DIR(repro/sweep/results)
 #
 # NOISE_TAG = which repro/sweep/noise/<tag>/ dir to read the noise pkl from. clean/uniform still
 # need a pkl (for pretrained_ckpt + delta), so point them at a reckless run of matching dataset/method/eps.
@@ -28,6 +30,9 @@ set -eo pipefail
 : "${TASKNUM:=10}"
 : "${NEPOCHS:=20}"
 : "${SEED:=0}"
+: "${PURIFIER:=}"
+: "${PURIFY_PASSES:=1}"
+: "${RESULTS_DIR:=repro/sweep/results}"
 : "${EVAL_TAG:?set EVAL_TAG (e.g. cifar100_ewc_uniform_eps0.3)}"
 : "${VARIANT:?set VARIANT (clean|uniform|ours)}"
 : "${EXPERIMENT:?set EXPERIMENT (split_cifar100|split_mini_imagenet|split_tiny_imagenet)}"
@@ -43,7 +48,7 @@ if [ -f "${CONDA_SH}" ]; then source "${CONDA_SH}"; else module load anaconda3 2
 conda activate "${ENV_PREFIX:-brainwash}"
 python -c "import torch" >/dev/null 2>&1 || { echo "FATAL: torch unavailable after conda activate '${ENV_PREFIX:-brainwash}' (set ENV_PREFIX=/path/to/envs/brainwash)"; exit 99; }
 export PYTHONUNBUFFERED=1
-mkdir -p logs repro/sweep/results
+mkdir -p logs "${RESULTS_DIR}"
 
 # locate the noise pkl (newest = best/final for that config)
 NOISE_PKL=$(ls -t "repro/sweep/noise/${NOISE_TAG}"/*.pkl 2>/dev/null | head -1 || true)
@@ -60,6 +65,13 @@ esac
 # afec_ewc needs lamb_emp
 EMP_ARGS=""
 [[ "${APPROACH}" == "afec_ewc" && "${LAMB_EMP}" != "-" ]] && EMP_ARGS="--lamb_emp ${LAMB_EMP}"
+
+PURIFY_ARGS=""
+if [[ -n "${PURIFIER}" ]]; then
+  [[ -f "${PURIFIER}" ]] || { echo "MISSING purifier ${PURIFIER}"; exit 2; }
+  PURIFY_ARGS="--purifier ${PURIFIER} --purify_passes ${PURIFY_PASSES}"
+  echo "[stage4] defense: PureVQ-GAN ${PURIFIER} (passes=${PURIFY_PASSES})"
+fi
 
 echo "[stage4] EVAL_TAG=${EVAL_TAG} VARIANT=${VARIANT} APPROACH=${APPROACH} LAMB=${LAMB} ${EMP_ARGS}"
 echo "[stage4] NOISE_PKL=${NOISE_PKL}"
@@ -78,6 +90,6 @@ CUDA_VISIBLE_DEVICES=0 python main_baselines.py \
     ${EMP_ARGS} \
     --checkpoint "${NOISE_PKL}" \
     --init_acc \
-    ${NOISE_ARGS} 2>&1 | tee "repro/sweep/results/${EVAL_TAG}.log"
+    ${NOISE_ARGS} ${PURIFY_ARGS} 2>&1 | tee "${RESULTS_DIR}/${EVAL_TAG}.log"
 
-echo "[stage4] done -> repro/sweep/results/${EVAL_TAG}.log (and acc_mat_*.npy in repo root)"
+echo "[stage4] done -> ${RESULTS_DIR}/${EVAL_TAG}.log (and acc_mat_*.npy in repo root)"

@@ -9,6 +9,23 @@ from resnet import ResNet18
 
 tstart = time.time()
 
+
+def purify_task_data(args, xtrain, xtrain_clean):
+    """Defense layer 1: pass every current-task training sample through PureVQ-GAN before the CL update."""
+    from purevqgan import load_purifier, purify_tensor
+    from purevqgan.purify import perturbation_report
+    G = load_purifier(args.purifier, device='cuda')
+    print(f'Purifying task data with {args.purifier} (passes={args.purify_passes}, config={G.config})')
+    t0 = time.time()
+    x_pure = purify_tensor(G, xtrain, passes=args.purify_passes)
+    print(f'Purified {len(xtrain)} samples in {time.time() - t0:.1f}s')
+    rep = perturbation_report(G, xtrain_clean, xtrain, passes=args.purify_passes)
+    print('Purification report : ' + ' '.join(f'{k}={v:.4f}' if isinstance(v, float) else f'{k}={v}'
+                                             for k, v in rep.items()))
+    del G
+    torch.cuda.empty_cache()
+    return x_pure.to(xtrain.device, xtrain.dtype)
+
 def main(args):
 
     if args.checkpoint != None:
@@ -195,6 +212,7 @@ def main(args):
         ytrain = data[t]['train']['y'].clone()
         yvalid = data[t]['test']['y'].clone()
 
+        xtrain_clean = None
         if args.checkpoint is not None and args.addnoise == True:
             
             if args.uniform is True:
@@ -211,6 +229,7 @@ def main(args):
                     print(f'number of noisy data : {len(inj_idx)}')
                     all_noise[inj_idx] = torch.rand_like(xtrain[inj_idx]) * 2 * checkpoint_dict['delta'] - checkpoint_dict['delta']
 
+                xtrain_clean = xtrain
                 xtrain = torch.clamp(xtrain + all_noise, 0, 1)  
 
                 
@@ -222,8 +241,12 @@ def main(args):
                 ytrain = ytrain[noise_prm]
 
             
+                xtrain_clean = xtrain
                 xtrain = torch.clamp(xtrain + all_noise, 0, 1)  
         
+        if args.purifier is not None:
+            xtrain = purify_task_data(args, xtrain, xtrain_clean if xtrain_clean is not None else xtrain)
+
         task = t
 
         # Train
@@ -275,6 +298,10 @@ def main(args):
             method = 'uniform'
         elif args.addnoise and args.uniform is False:
             method = 'ours'    
+        if args.purifier is not None:
+            method += '_pure-' + (args.purify_tag or os.path.basename(os.path.dirname(os.path.abspath(args.purifier))))
+            if args.purify_passes != 1:
+                method += f'_p{args.purify_passes}'
 
         np.save(f'acc_mat_{acc_mat_sace_name}_{method}.npy', acc)   
 
