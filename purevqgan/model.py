@@ -113,7 +113,7 @@ class VectorQuantizer(nn.Module):
 
     @torch.no_grad()
     def restart_dead_codes(self, usage_counts, z_e):
-        """Optional (off by default, not in the paper): re-seed never-used codes from random encoder outputs."""
+        """Not in the paper (on by default in train.py): re-seed unused codes from random encoder outputs."""
         dead = (usage_counts == 0).nonzero(as_tuple=True)[0]
         if len(dead) == 0:
             return 0

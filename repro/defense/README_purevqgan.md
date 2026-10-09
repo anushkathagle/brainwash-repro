@@ -47,8 +47,19 @@ State these in the thesis methods section:
    after that. Scale with `--base_ch` / `--num_res_blocks` / `--n_mid`. Measured G sizes:
    `64/1/2` 3.5M · `128/1/2` 12.3M · `256/1/2` 46.5M · `256/2/2` 58.3M · `384/2/4` 172M ·
    `512/3/4` 351M. The script prints the count. Report the size you use.
-5. **Codebook init** is uniform ±1/K (van den Oord). No EMA updates. Dead-code restart is
-   available (`--restart_dead_codes`) but **off**, because the paper doesn't mention it.
+5. **Codebook init and dead-code restart (the one real deviation).** Codes start uniform in ±1/K
+   (van den Oord) with no EMA. Every 200 steps, codes that weren't used are re-seeded from random
+   encoder outputs (`--restart_dead_codes 1`, the default). The paper doesn't mention this, but
+   without it the codebook **collapses**. In our sanity run on natural-image 32×32 patches
+   (3.5M-param G, batch 64, CPU):
+
+   | | epoch 0 codes used | epoch 0 val PSNR | epoch 1 |
+   |---|---|---|---|
+   | plain VQ (paper as written) | 20 / 512 | 21.3 dB | 28 / 512, 22.4 dB |
+   | + dead-code restart (default) | 475 / 512 | 25.0 dB | – |
+
+   The paper reports 500–600 codes in use for K = 2048, so the authors evidently avoided collapse
+   somehow. Use `--restart_dead_codes 0` for the literal version, and state this choice in the thesis.
 6. **Random horizontal flips** during purifier training.
 7. **Reconstruction MSE is computed in [-1, 1] space.** That is a constant ×4 vs. [0, 1] and only
    rescales λ's effective weight slightly.
@@ -142,7 +153,7 @@ gets overwritten.
   LR scheduling, and earlier tasks are untouched, so BWT stays comparable with the undefended
   baseline. (The PureVQ-GAN paper also purifies test images at inference. That isn't done here,
   because it would change the accuracy matrix of tasks the checkpoint already learned.)
-* Verified in this repo: the code was smoke-tested on CPU (shapes for 32/64/84 px, training loop,
+* Verified in this repo: a short natural-image sanity run (table above) shows it learns. The code was also smoke-tested on CPU (shapes for 32/64/84 px, training loop,
   checkpoint save/load, the stage-4 hook, the sweep dry-run, the collector). **It has not yet been
   trained at full scale on CIFAR-10 or run on the cluster.** Check `train_log.jsonl` on the first
   real run before launching sweeps.

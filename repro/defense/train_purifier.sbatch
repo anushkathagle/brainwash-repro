@@ -16,7 +16,7 @@
 #   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=stl10_84_K512,PVQ_DATASET=stl10,IMG_SIZE=84,LATENT=21 \
 #          repro/defense/train_purifier.sbatch
 # Required: PVQ_TAG   Optional: PVQ_DATASET(cifar10) IMG_SIZE(32) LATENT(8) K(512) BASE_CH(128)
-#   NUM_RES_BLOCKS(1) GAN_WEIGHT(0.1) EPOCHS(100) BATCH(256) LR(4e-4) PVQ_SEED(0) EXTRA_ARGS("")
+#   NUM_RES_BLOCKS(1) GAN_WEIGHT(0.1) EPOCHS(100) BATCH(256) LR(4e-4) PVQ_SEED(0) EXTRA_ARGS("", e.g. "--restart_dead_codes 0")
 #   PVQ_ROOT(purifiers)  -> output in $PVQ_ROOT/$PVQ_TAG/purifier.pt  (resumable: re-submit to continue)
 set -eo pipefail
 

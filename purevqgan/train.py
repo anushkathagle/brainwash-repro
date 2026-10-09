@@ -55,7 +55,10 @@ def get_args(argv=None):
     p.add_argument('--batch_size', type=int, default=256)
     p.add_argument('--epochs', type=int, default=100)
     p.add_argument('--hflip', type=int, default=1, help='[choice] random horizontal flips')
-    p.add_argument('--restart_dead_codes', action='store_true', help='not in the paper; off by default')
+    p.add_argument('--restart_dead_codes', type=int, default=1,
+                   help='[choice] not in the paper: re-seed codes unused in the last --restart_every steps from '
+                        'encoder outputs (1 = on). Without it the codebook collapses to ~20-30 of 512 codes.')
+    p.add_argument('--restart_every', type=int, default=200, help='steps between dead-code restarts')
     p.add_argument('--amp', action='store_true', help='bf16 autocast (A100)')
     p.add_argument('--val_size', type=int, default=1000)
     p.add_argument('--seed', type=int, default=0)
@@ -135,7 +138,8 @@ def main(argv=None):
         use_gan = args.gan_weight > 0 and epoch >= args.disc_start_epoch
         order = torch.randperm(len(xtr))
         agg = {'rec': 0., 'vq': 0., 'g_adv': 0., 'd': 0.}
-        usage = torch.zeros(args.num_codes, dtype=torch.long, device=device)
+        window = torch.zeros(args.num_codes, dtype=torch.long, device=device)
+        restarted = 0
         for it in range(steps_per_epoch):
             x = xtr[order[it * args.batch_size:(it + 1) * args.batch_size]].to(device, non_blocking=True).float() / 255
             if args.hflip:
@@ -154,7 +158,10 @@ def main(argv=None):
             optG.zero_grad(set_to_none=True)
             loss_g.backward()
             optG.step()
-            usage += torch.bincount(idx.flatten(), minlength=args.num_codes)
+            window += torch.bincount(idx.flatten(), minlength=args.num_codes)
+            if args.restart_dead_codes and (step + 1) % args.restart_every == 0:
+                restarted += G.quantizer.restart_dead_codes(window, z_e.detach())
+                window.zero_()
 
             # ---- discriminator: max E[log D(x)] + E[log(1 - D(x^))] ----
             d_loss = torch.zeros((), device=device)
@@ -173,7 +180,6 @@ def main(argv=None):
             if args.max_steps and step >= args.max_steps:
                 break
 
-        restarted = G.quantizer.restart_dead_codes(usage, z_e.detach()) if args.restart_dead_codes else 0
         val_psnr, used, ppl = evaluate(G, xval, device)
         rec_ = dict(epoch=epoch, step=step, **{k: round(v, 5) for k, v in agg.items()}, val_psnr=round(val_psnr, 3),
                     codes_used=used, perplexity=round(ppl, 1), restarted=restarted, gan=use_gan,
