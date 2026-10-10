@@ -7,7 +7,8 @@ No continual-learning training happens here; it takes minutes on a GPU.
 
 Per noise pkl it reports:
   * EBM energy of clean task-T images vs the same images + BrainWash noise vs + uniform noise of the same eps (control)
-  * AUROC(poisoned energy > clean energy): 0.5 = EBM can't tell them apart, 1.0 = perfectly separated
+  * AUROC(poisoned energy > clean energy) plus the same for uniform noise as a control (both ~1.0 at these eps, so
+    detection is NOT the go/no-go; the verdict uses survival and clean PSNR at the largest step count)
   * per Langevin step count: psnr_clean (utility cost), psnr_poisoned, survival_l2 (fraction of the perturbation left)
 and writes <out>/<tag>.json plus an energy histogram <out>/<tag>_energy.png.
 """
@@ -58,12 +59,18 @@ def run_check(ebm, x, xp, delta, steps_list, max_images=2000, seed=0):
     return rep, curves
 
 
-def verdict(a):
-    if a >= 0.75:
-        return 'EBM clearly separates poisoned from clean -> promising, go to step 2'
-    if a >= 0.6:
-        return 'weak separation -> step 2 may still help; run a small sweep before committing'
-    return 'EBM barely sees the noise -> purification unlikely to remove it; consider stopping here'
+def verdict(rep):
+    """Decision uses PURIFICATION results, not detection: detection AUROC is ~1.0 for ANY noise of this size
+    (compare auroc_uniform_vs_clean), so it says nothing about whether Langevin can remove the perturbation."""
+    last = rep['purify'][-1]
+    surv, q, steps = last['survival_l2'], last['psnr_clean'], last['steps']
+    gain = last['psnr_poisoned'] - last['input_psnr_poisoned']
+    if surv <= 0.5 and q >= 25:
+        return f'GO: at {steps} steps survival {surv:.2f} <= 0.5 with clean PSNR {q:.1f} dB -> run step 2'
+    if surv <= 0.75 and q >= 25:
+        return f'MAYBE: survival {surv:.2f} at {steps} steps; run one stage-4 point before a sweep'
+    return (f'STOP: at {steps} steps survival is {surv:.2f} (perturbation mostly intact), purified poison is only '
+            f'{gain:+.1f} dB closer to clean, and clean PSNR is {q:.1f} dB. Detection AUROC is not evidence of removal.')
 
 
 def save_hist(curves, path, title):
@@ -101,7 +108,7 @@ def main():
         print(f'=== {tag}  ({p})', flush=True)
         x, xp, delta = load_task(a.experiment, p, a.tasknum)
         rep, curves = run_check(ebm, x, xp, delta, a.steps, a.max_images)
-        rep.update(noise_pkl=p, ebm_path=a.ebm_path, verdict=verdict(rep['auroc_poisoned_vs_clean']))
+        rep.update(noise_pkl=p, ebm_path=a.ebm_path, verdict=verdict(rep))
         print(json.dumps({k: v for k, v in rep.items() if k != 'purify'}, indent=1))
         with open(os.path.join(a.out, f'{tag}.json'), 'w') as f:
             json.dump(rep, f, indent=2)
