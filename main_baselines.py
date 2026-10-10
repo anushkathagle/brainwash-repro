@@ -32,7 +32,8 @@ def purify_task_data_ebm(args, xtrain, xtrain_clean):
     ebm = load_ebm(args.ebm_path, args.puregen_repo, device='cuda')
     print(f'EBM-purifying task data with {args.ebm_path} (steps={args.ebm_steps}, temp={args.ebm_temp}, eps={args.ebm_eps})')
     t0 = time.time()
-    x_pure, rep = purify_with_report(ebm, xtrain_clean, xtrain, args.ebm_steps, temp=args.ebm_temp, eps=args.ebm_eps)
+    x_pure, rep = purify_with_report(ebm, xtrain_clean, xtrain, args.ebm_steps, temp=args.ebm_temp, eps=args.ebm_eps,
+                                     init_noise=args.ebm_init_noise)
     print(f'Purified {len(xtrain)} samples in {time.time() - t0:.1f}s')
     print('Purification report : ' + ' '.join(f'{k}={v:.4f}' if isinstance(v, float) else f'{k}={v}'
                                              for k, v in rep.items()))

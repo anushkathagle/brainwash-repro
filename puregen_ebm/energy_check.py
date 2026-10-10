@@ -33,7 +33,7 @@ def load_task(experiment, noise_pkl, tasknum=10):
     return x, torch.clamp(x + noise, 0, 1), float(ck['delta'])
 
 
-def run_check(ebm, x, xp, delta, steps_list, max_images=2000, seed=0):
+def run_check(ebm, x, xp, delta, steps_list, max_images=2000, seed=0, **kw):
     """x, xp: clean / poisoned task images in [0,1]. Returns (report dict, energy arrays for plotting)."""
     g = torch.Generator().manual_seed(seed)
     rows = (xp - x).flatten(1).abs().amax(1) > 0
@@ -51,7 +51,8 @@ def run_check(ebm, x, xp, delta, steps_list, max_images=2000, seed=0):
            'purify': []}
     curves = {'clean': ec, 'BrainWash': ep, 'uniform': eu}
     for s in steps_list:
-        pp, r = purify_with_report(ebm, xc, xpo, s)
+        pp, r = purify_with_report(ebm, xc, xpo, s, **kw)
+        r.update({k: v for k, v in kw.items()})
         r['energy_purified_poisoned'] = energies(ebm, pp).mean().item()
         rep['purify'].append(r)
         curves[f'purified {s} steps'] = energies(ebm, pp)
@@ -96,18 +97,22 @@ def main():
     ap.add_argument('--noise_pkl', nargs='+', required=True, help='pkl files or noise directories (newest pkl used)')
     ap.add_argument('--steps', type=int, nargs='+', default=[50, 100, 150, 300])
     ap.add_argument('--max_images', type=int, default=2000)
+    ap.add_argument('--eps', type=float, default=1.25e-2, help='Langevin step size (authors: 1.25e-2)')
+    ap.add_argument('--temp', type=float, default=1e-4, help='Langevin temperature (authors: 1e-4)')
+    ap.add_argument('--init_noise', type=float, default=0.0, help='Gaussian noise std (in [-1,1] units) added before the chain')
     ap.add_argument('--tasknum', type=int, default=10)
     ap.add_argument('--out', default='repro/defense/ebm_check')
+    ap.add_argument('--tag_suffix', default='', help='appended to output names, e.g. _eps0.05')
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     ebm = load_ebm(a.ebm_path, a.puregen_repo)
     for p in a.noise_pkl:
         if os.path.isdir(p):
             p = max(glob.glob(os.path.join(p, '*.pkl')), key=os.path.getmtime)
-        tag = os.path.basename(os.path.dirname(p)) or os.path.basename(p)
+        tag = (os.path.basename(os.path.dirname(p)) or os.path.basename(p)) + (a.tag_suffix or '')
         print(f'=== {tag}  ({p})', flush=True)
         x, xp, delta = load_task(a.experiment, p, a.tasknum)
-        rep, curves = run_check(ebm, x, xp, delta, a.steps, a.max_images)
+        rep, curves = run_check(ebm, x, xp, delta, a.steps, a.max_images, eps=a.eps, temp=a.temp, init_noise=a.init_noise)
         rep.update(noise_pkl=p, ebm_path=a.ebm_path, verdict=verdict(rep))
         print(json.dumps({k: v for k, v in rep.items() if k != 'purify'}, indent=1))
         with open(os.path.join(a.out, f'{tag}.json'), 'w') as f:

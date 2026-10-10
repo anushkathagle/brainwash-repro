@@ -35,16 +35,20 @@ def load_ebm(ebm_path=DEFAULT_EBM, puregen_repo=None, device=None):
     return ebm
 
 
-def langevin_purify(ebm, x01, steps=150, temp=1e-4, eps=1.25e-2, batch_size=500, quantize=True):
+def langevin_purify(ebm, x01, steps=150, temp=1e-4, eps=1.25e-2, init_noise=0.0, batch_size=500, quantize=True):
     """x01: (N,3,H,W) float in [0,1] on any device. Returns purified images in [0,1] on x01's device/dtype.
 
     quantize=True rounds to 8-bit like the authors' pipeline (they save purified data as PIL images).
+    init_noise: std of Gaussian noise added in [-1, 1] units BEFORE the chain (DiffPure-like knob; the authors' code
+    has this hook but fixes it at 0, so large values are outside what the EBM was trained for).
     """
     dev = next(ebm.parameters()).device
     out = torch.empty_like(x01)
     with torch.enable_grad():
         for i in range(0, len(x01), batch_size):
             x = (x01[i:i + batch_size].to(dev).float() * 2 - 1).detach()
+            if init_noise > 0:
+                x = x + init_noise * torch.randn_like(x)
             for _ in range(steps):
                 x.requires_grad_(True)
                 e = ebm(x).sum() / temp

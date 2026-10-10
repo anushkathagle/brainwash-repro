@@ -65,6 +65,7 @@ def get_args():
     parser.add_argument('--ebm_steps', default=150, type=int, help='Langevin steps (authors: 150 from-scratch)')
     parser.add_argument('--ebm_temp', default=1e-4, type=float)
     parser.add_argument('--ebm_eps', default=1.25e-2, type=float)
+    parser.add_argument('--ebm_init_noise', default=0.0, type=float, help='Gaussian noise std added before Langevin ([-1,1] units)')
     
     args=parser.parse_args()
     return args
