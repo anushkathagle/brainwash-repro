@@ -21,3 +21,20 @@ Their code targets TPUs (`torch_xla`); ours is plain PyTorch.
 Tested here: the module, the stage-4 hook and the energy check, using a randomly initialised EBM of the authors'
 architecture loaded through the same `from_pretrained` path. **Not tested here:** the released weights, because my
 sandbox can't reach Hugging Face, and a real CUDA stage-4 run. The first Colab cell that loads the EBM checks the first.
+
+## Running the final numbers on the cluster (pinned `brainwash` env: py3.10, torch 1.12.1)
+Colab uses a newer Python/torch, so numbers can differ slightly from the cluster reproduction. For thesis numbers, run
+defended AND undefended on the cluster. One-time setup on a LOGIN node (internet):
+```bash
+conda activate brainwash && pip install huggingface_hub safetensors     # not in requirements-cu113.txt
+git clone --depth 1 https://github.com/SunayBhat1/PureGen_PoisonDefense ~/PureGen_PoisonDefense
+huggingface-cli download SunayBhat1/puregen-ebm-cinic10-imagenet --local-dir ~/puregen_ebm_weights   # compute nodes may be offline
+```
+Then (defended run; for the undefended reference drop the EBM_* variables):
+```bash
+sbatch --account=$ACCT --gres=gpu:a100:1 --export=ALL,EVAL_TAG=cifar100_ewc_cautious_eps0.1__ebm_eps0.025_s100,VARIANT=ours,\
+EXPERIMENT=split_cifar100,APPROACH=ewc,LAMB=500000,NOISE_TAG=cifar100_ewc_cautious_eps0.1,\
+EBM_STEPS=100,EBM_EPS=0.025,EBM_PATH=$HOME/puregen_ebm_weights,PUREGEN_REPO=$HOME/PureGen_PoisonDefense,\
+RESULTS_DIR=repro/defense/results repro/sweep/stage4.sbatch
+```
+Not yet tested on torch 1.12 (only on torch 2.x); if the EBM load fails there, `safetensors`/`huggingface_hub` versions are the first suspects.
