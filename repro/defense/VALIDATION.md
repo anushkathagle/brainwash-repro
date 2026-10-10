@@ -1,5 +1,8 @@
 # Validating PureVQ-GAN in the paper's own setting (do this BEFORE BrainWash)
 
+> **Fast path:** `repro/defense/validate_narcissus_colab.ipynb` runs rungs 1-4 for Narcissus end to end on Colab, using a compact
+> re-implementation of the attack (`narcissus_lite.py`). Its undefended-PSR gate (rung 2) is what justifies trusting that attack.
+
 Goal: separate "my code is wrong" from "the method doesn't work on BrainWash". We reproduce the
 paper's CIFAR-10 setting first. **Write the thresholds below into your notes before running**, so a
 miss can't be explained away afterwards.

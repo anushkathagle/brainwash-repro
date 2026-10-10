@@ -130,7 +130,10 @@ def main(argv=None):
     with open(os.path.join(args.out, 'args.json'), 'w') as f:
         json.dump(vars(args), f, indent=2)
     log = open(os.path.join(args.out, 'train_log.jsonl'), 'a')
-    amp = torch.autocast('cuda', dtype=torch.bfloat16) if (args.amp and device == 'cuda') else torch.autocast('cpu', enabled=False)
+    use_amp = args.amp and device == 'cuda' and torch.cuda.get_device_capability()[0] >= 8   # bf16 needs Ampere+ (not T4)
+    if args.amp and not use_amp:
+        print('[amp] bf16 autocast needs an Ampere+ GPU (A100/L4); running in fp32')
+    amp = torch.autocast('cuda', dtype=torch.bfloat16) if use_amp else torch.autocast('cpu', enabled=False)
     steps_per_epoch = math.ceil(len(xtr) / args.batch_size)
 
     for epoch in range(start_epoch, args.epochs):

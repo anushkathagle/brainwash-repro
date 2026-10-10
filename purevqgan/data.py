@@ -4,7 +4,7 @@ Spec strings for --dataset:
   cifar10                generic natural images, class-disjoint from CIFAR-100   (default for split_cifar100)
   cifar100               (victim's own distribution -- only for ablations)
   stl10                  STL-10 'unlabeled' split (100k ImageNet-derived 96x96 images; resized)
-  npy:/path/x.npy        (N,H,W,3) or (N,3,H,W) uint8 array
+  npy:/path/x.npy        (N,H,W,3) or (N,3,H,W) uint8 array; a .npz is read via its 'x_train' key
   folder:/path/to/dir    any directory tree of .png/.jpg/.jpeg images
   bw_poisoned:/path.pkl  the poisoned BrainWash task-T training set from a stage-3 noise pkl, i.e. the
                          PureVQ-GAN paper's own protocol (purifier trained on the poisoned training set).
@@ -113,7 +113,10 @@ def load_images(spec, img_size, root='./data', bw_experiment=None, n_fake=512):
         if kind in ('cifar10', 'cifar100', 'stl10'):
             x = _torchvision(kind, root)
         elif kind == 'npy':
-            x = _to_uint8_nchw(np.load(arg, mmap_mode='r'))
+            arr = np.load(arg) if arg.endswith('.npz') else np.load(arg, mmap_mode='r')
+            if arg.endswith('.npz'):
+                arr = arr['x_train']          # poisoned-dataset npz from repro/defense (key: x_train)
+            x = _to_uint8_nchw(arr)
         elif kind == 'folder':
             x = _folder(arg)
         elif kind == 'bw_poisoned':
