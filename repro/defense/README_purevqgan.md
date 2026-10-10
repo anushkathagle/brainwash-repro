@@ -20,6 +20,8 @@ repro/defense/
   collect_defense.py             defended vs undefended table (+ paired t-test across seeds)
 ```
 
+> **Before running this on BrainWash, validate the implementation in the paper's own CIFAR-10 setting: see [`VALIDATION.md`](VALIDATION.md).**
+
 ## 1. What the paper specifies vs. what we had to choose
 
 | Item | Paper | This implementation |
