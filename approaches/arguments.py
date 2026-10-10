@@ -57,6 +57,14 @@ def get_args():
     parser.add_argument('--purifier', default=None, type=str, help='path to a purevqgan purifier.pt')
     parser.add_argument('--purify_passes', default=1, type=int, help='refinement passes x <- G(x) (paper eq. 4)')
     parser.add_argument('--purify_tag', default=None, type=str, help='suffix for acc_mat output (default: purifier dir name)')
+
+    # defense layer 1 (alternative): PureGen-EBM Langevin purification of the current task's training data
+    parser.add_argument('--ebm_purify', action='store_true', help='purify task-T training data with a pretrained PureGen EBM')
+    parser.add_argument('--ebm_path', default='SunayBhat1/puregen-ebm-cinic10-imagenet', type=str, help='HF id or local dir')
+    parser.add_argument('--puregen_repo', default=None, type=str, help='clone of SunayBhat1/PureGen_PoisonDefense (or $PUREGEN_REPO)')
+    parser.add_argument('--ebm_steps', default=150, type=int, help='Langevin steps (authors: 150 from-scratch)')
+    parser.add_argument('--ebm_temp', default=1e-4, type=float)
+    parser.add_argument('--ebm_eps', default=1.25e-2, type=float)
     
     args=parser.parse_args()
     return args

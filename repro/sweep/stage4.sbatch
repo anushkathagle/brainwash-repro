@@ -19,6 +19,8 @@
 # Optional: LAMB_EMP(-) LASTTASK(9) TASKNUM(10) NEPOCHS(20) ENV_NAME(brainwash)
 # Defense (PureVQ-GAN, see repro/defense/README_purevqgan.md):
 #           PURIFIER(path to purifier.pt; unset = undefended) PURIFY_PASSES(1) RESULTS_DIR(repro/sweep/results)
+#           EBM_STEPS(unset = no EBM; e.g. 150) EBM_PATH(HF id or local dir) PUREGEN_REPO(clone of PureGen_PoisonDefense)
+#           (compute nodes may lack internet: pre-download the EBM on a login node and set EBM_PATH to that dir)
 #
 # NOISE_TAG = which repro/sweep/noise/<tag>/ dir to read the noise pkl from. clean/uniform still
 # need a pkl (for pretrained_ckpt + delta), so point them at a reckless run of matching dataset/method/eps.
@@ -33,6 +35,9 @@ set -eo pipefail
 : "${PURIFIER:=}"
 : "${PURIFY_PASSES:=1}"
 : "${RESULTS_DIR:=repro/sweep/results}"
+: "${EBM_STEPS:=}"
+: "${EBM_PATH:=SunayBhat1/puregen-ebm-cinic10-imagenet}"
+: "${PUREGEN_REPO:=}"
 : "${EVAL_TAG:?set EVAL_TAG (e.g. cifar100_ewc_uniform_eps0.3)}"
 : "${VARIANT:?set VARIANT (clean|uniform|ours)}"
 : "${EXPERIMENT:?set EXPERIMENT (split_cifar100|split_mini_imagenet|split_tiny_imagenet)}"
@@ -71,6 +76,11 @@ if [[ -n "${PURIFIER}" ]]; then
   [[ -f "${PURIFIER}" ]] || { echo "MISSING purifier ${PURIFIER}"; exit 2; }
   PURIFY_ARGS="--purifier ${PURIFIER} --purify_passes ${PURIFY_PASSES}"
   echo "[stage4] defense: PureVQ-GAN ${PURIFIER} (passes=${PURIFY_PASSES})"
+fi
+if [[ -n "${EBM_STEPS}" ]]; then
+  [[ -z "${PURIFIER}" ]] || { echo "set only one of PURIFIER / EBM_STEPS"; exit 2; }
+  PURIFY_ARGS="--ebm_purify --ebm_steps ${EBM_STEPS} --ebm_path ${EBM_PATH} ${PUREGEN_REPO:+--puregen_repo ${PUREGEN_REPO}}"
+  echo "[stage4] defense: PureGen-EBM ${EBM_PATH} (steps=${EBM_STEPS})"
 fi
 
 echo "[stage4] EVAL_TAG=${EVAL_TAG} VARIANT=${VARIANT} APPROACH=${APPROACH} LAMB=${LAMB} ${EMP_ARGS}"
