@@ -7,7 +7,7 @@ where <base> = <ds>_<method>_<mode>[_eps<e>][_s<seed>].
 
 Per (dataset, method, mode, eps, purifier) it reports mean +/- std over seeds of:
   BWT / last-task Acc  undefended vs defended, dBWT = defended - undefended (positive = less forgetting),
-  avg-acc, and the purification diagnostics printed by main_baselines.py (survival_l2, code_flip,
+  avg-acc, and the purification diagnostics printed by purify_layer1b.py (survival_l2, code_flip,
   psnr_clean). With >= 2 paired seeds and scipy available it adds a paired t-test p-value on BWT.
 
 Usage:

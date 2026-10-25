@@ -70,7 +70,7 @@ def _folder(path):
 
 
 def load_brainwash_task(experiment, noise_pkl, lasttask=None, tasknum=10):
-    """Rebuild the poisoned task-T training set exactly as main_baselines.py does for VARIANT=ours."""
+    """Rebuild the poisoned task-T training set exactly as main_baselines.py / purify_layer1b.py do for VARIANT=ours."""
     if REPO_ROOT not in sys.path:
         sys.path.insert(0, REPO_ROOT)
     ck = pkl.load(open(noise_pkl, 'rb'))

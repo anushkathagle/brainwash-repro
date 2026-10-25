@@ -1,6 +1,6 @@
 """Apply a trained PureVQ-GAN purifier, and measure how much of a BrainWash perturbation survives it.
 
-Library use (this is what main_baselines.py calls):
+Library use (this is what purify_layer1b.py calls):
     G = load_purifier('purifiers/cifar10_K512/purifier.pt')
     x_pure = purify_tensor(G, x, passes=1)
 

@@ -54,9 +54,12 @@ def stage4(name, noise_pkl, variant, method, results_dir, defense_args='', seed=
     m = METHODS[method]
     noise = {'clean': '', 'uniform': '--addnoise --uniform', 'ours': '--addnoise'}[variant]
     emp = f"--lamb_emp {m['lamb_emp']}" if 'lamb_emp' in m else ''
-    cmd = (f'python main_baselines.py --experiment {experiment} --approach {method} --lasttask 9 --tasknum 10 '
+    # undefended reference runs use the ORIGINAL main_baselines.py; defended runs use the forked purify_layer1b.py
+    script = 'purify_layer1b.py' if defense_args.strip() else 'main_baselines.py'
+    extra = f'--out_dir {results_dir}/layer1b_out' if defense_args.strip() else ''
+    cmd = (f'python {script} --experiment {experiment} --approach {method} --lasttask 9 --tasknum 10 '
            f'--nepochs 20 --batch-size 16 --lr 0.01 --clip 100. --lamb {m["lamb"]} {emp} --seed {seed} '
-           f'--checkpoint "{noise_pkl}" --init_acc {noise} {defense_args}')
+           f'--checkpoint "{noise_pkl}" --init_acc {noise} {defense_args} {extra}')
     sh(cmd, log)
     r = parse_log(log)
     if r is None:

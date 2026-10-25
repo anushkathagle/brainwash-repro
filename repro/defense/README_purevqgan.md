@@ -12,8 +12,9 @@ purevqgan/                     the method (importable package)
   train.py                       python -m purevqgan.train      — train a purifier
   purify.py                      python -m purevqgan.purify     — load/apply + perturbation diagnostics
   data.py                        purifier training-data sources (cifar10, stl10, npy:, folder:, bw_poisoned:)
-main_baselines.py              + --purifier / --purify_passes / --purify_tag  (stage-4 hook)
-repro/sweep/stage4.sbatch      + optional PURIFIER / PURIFY_PASSES / RESULTS_DIR env vars
+purify_layer1b.py              forked copy of main_baselines.py with --purifier / --purify_passes (+ EBM flags);
+                               every added line is marked `# >>> LAYER1B`. main_baselines.py itself is untouched.
+repro/defense/stage4_layer1b.sbatch  copy of stage4.sbatch that runs the fork (PURIFIER / PURIFY_PASSES env vars)
 repro/defense/
   train_purifier.sbatch          train one purifier on an A100
   submit_purevqgan.sh            defended stage-4 sweep (reuses the attack sweep's noise)
@@ -120,7 +121,7 @@ python repro/defense/collect_defense.py --csv defense_pvq.csv
 
 Running one by hand is just the usual stage-4 command plus the purifier flags:
 ```bash
-python main_baselines.py --experiment split_cifar100 --approach ewc --lasttask 9 --tasknum 10 --nepochs 20 \
+python purify_layer1b.py --experiment split_cifar100 --approach ewc --lasttask 9 --tasknum 10 --nepochs 20 \
   --batch-size 16 --lr 0.01 --clip 100. --lamb 500000 --checkpoint <noise.pkl> --init_acc --addnoise \
   --purifier purifiers/cifar10_K512/purifier.pt --purify_passes 1
 ```

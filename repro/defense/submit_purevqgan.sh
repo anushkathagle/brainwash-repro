@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Submit PureVQ-GAN-defended stage-4 evaluations (thesis RQ1, layer one: input purification).
 #
-# Re-uses the BrainWash noise already produced by repro/sweep (stage 3) and the same stage4.sbatch,
-# with PURIFIER set, so the only thing that differs from the undefended baseline is the purifier.
+# Re-uses the BrainWash noise already produced by repro/sweep (stage 3) and repro/defense/stage4_layer1b.sbatch (a copy of
+# stage4.sbatch that runs purify_layer1b.py), with PURIFIER set, so the only thing that differs from the baseline is the purifier.
 # Results go to repro/defense/results/<base_tag>__pvq-<purifier_tag>.log ; compare with
 #   python repro/defense/collect_defense.py
 #
@@ -52,7 +52,7 @@ eval_one() {  # base_tag variant noise_tag seed purifier ptag
   fi
   submit --account="${ACCT}" --partition="${PART}" --gres="${GRES}" --job-name="pvq_${et}" \
     --export=ALL,EVAL_TAG="${et}",VARIANT="${variant}",EXPERIMENT="${experiment}",APPROACH="${method}",LAMB="${lamb}",LAMB_EMP="${lamb_emp}",LASTTASK="${lasttask}",TASKNUM="${tasknum}",NOISE_TAG="${ntag}",SEED="${seed}",PURIFIER="${pur}",PURIFY_PASSES="${PURIFY_PASSES}",RESULTS_DIR="${RES}" \
-    repro/sweep/stage4.sbatch
+    repro/defense/stage4_layer1b.sbatch
   echo "  [submit] ${et}  (variant=${variant}, noise=${ntag})"
 }
 

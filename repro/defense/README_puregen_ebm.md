@@ -14,9 +14,9 @@ Their code targets TPUs (`torch_xla`); ours is plain PyTorch.
 |---|---|
 | load EBM, Langevin purification, energies, survival report | `puregen_ebm/ebm.py` |
 | step 1: energy go/no-go check (minutes) | `python -m puregen_ebm.energy_check ...` |
-| step 2: stage-4 hook | `main_baselines.py --ebm_purify --ebm_steps N [--ebm_path ...] [--puregen_repo ...]` |
+| step 2: stage-4 run | `purify_layer1b.py --ebm_purify --ebm_steps N [--ebm_path ...] [--puregen_repo ...]` (forked copy of `main_baselines.py`; the original is untouched) |
 | Colab notebook (steps 1 + 2) | `repro/defense/ebm_brainwash_colab.ipynb` |
-| cluster | `repro/sweep/stage4.sbatch` with `EBM_STEPS=150 PUREGEN_REPO=/path/to/clone` (+ `EBM_PATH=<local dir>` if compute nodes are offline) |
+| cluster | `repro/defense/stage4_layer1b.sbatch` with `EBM_STEPS=150 PUREGEN_REPO=/path/to/clone` (+ `EBM_PATH=<local dir>` if compute nodes are offline) |
 
 Tested here: the module, the stage-4 hook and the energy check, using a randomly initialised EBM of the authors'
 architecture loaded through the same `from_pretrained` path. **Not tested here:** the released weights, because my
@@ -35,6 +35,6 @@ Then (defended run; for the undefended reference drop the EBM_* variables):
 sbatch --account=$ACCT --gres=gpu:a100:1 --export=ALL,EVAL_TAG=cifar100_ewc_cautious_eps0.1__ebm_eps0.025_s100,VARIANT=ours,\
 EXPERIMENT=split_cifar100,APPROACH=ewc,LAMB=500000,NOISE_TAG=cifar100_ewc_cautious_eps0.1,\
 EBM_STEPS=100,EBM_EPS=0.025,EBM_PATH=$HOME/puregen_ebm_weights,PUREGEN_REPO=$HOME/PureGen_PoisonDefense,\
-RESULTS_DIR=repro/defense/results repro/sweep/stage4.sbatch
+RESULTS_DIR=repro/defense/results repro/defense/stage4_layer1b.sbatch
 ```
 Not yet tested on torch 1.12 (only on torch 2.x); if the EBM load fails there, `safetensors`/`huggingface_hub` versions are the first suspects.
