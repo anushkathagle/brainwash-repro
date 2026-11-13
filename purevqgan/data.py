@@ -1,7 +1,7 @@
 """Training-data sources for the purifier. Everything is returned as a uint8 tensor (N, 3, H, W) on CPU.
 
 Spec strings for --dataset:
-  cifar10                generic natural images, class-disjoint from CIFAR-100   (default for split_cifar100)
+  cifar10                generic natural images, different images from CIFAR-100 (default for split_cifar100); NOT a guarantee of disjoint classes
   cifar100               (victim's own distribution -- only for ablations)
   stl10                  STL-10 'unlabeled' split (100k ImageNet-derived 96x96 images; resized)
   npy:/path/x.npy        (N,H,W,3) or (N,3,H,W) uint8 array; a .npz is read via its 'x_train' key

@@ -72,7 +72,7 @@ State these in the thesis methods section:
   For an ablation, use `--dataset bw_poisoned:<noise.pkl> --bw_experiment split_cifar100`.
 * **Your proposal (Sec. 4.4):** "a fixed prior trained only on generic natural images, with no access
   to the victim's task data". Defaults that respect this:
-  * split CIFAR-100 → `--dataset cifar10` (32×32, same source collection, **class-disjoint** from CIFAR-100)
+  * split CIFAR-100 → `--dataset cifar10` (32×32, same source collection, but **different images** from CIFAR-100; the label sets are not guaranteed disjoint, e.g. CIFAR-10 `truck` vs CIFAR-100 `pickup_truck`, so call it "a separate, similar-distribution dataset", not "class-disjoint")
   * split miniImageNet → `--dataset stl10 --img_size 84 --latent_size 21` (100k unlabeled
     ImageNet-derived images. 84 = 21·4 keeps the same 4× spatial compression as CIFAR)
   * split TinyImageNet → `--img_size 64 --latent_size 16` with `stl10` or another generic set
