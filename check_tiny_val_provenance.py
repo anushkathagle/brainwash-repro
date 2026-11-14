@@ -178,7 +178,7 @@ def load_ref(args, wnids):
         if args.ref_limit:
             files = files[:args.ref_limit]
         print(f'loading {len(files)} unlabeled reference images from {args.ref_all_dir} ...', flush=True)
-        ref = {'*': [(os.path.relpath(f, args.ref_all_dir), _variants(Image.open(f))) for f in files]}
+        ref = {'*': [(os.path.relpath(f, args.ref_all_dir), Image.open(f).convert('RGB')) for f in files]}
     else:
         sys.exit('give one of --ref_dir, --ref_flat_dir + --ref_labels_csv, --ref_npz + --ref_map, --ref_all_dir, --ref_parquet')
     return {k: _pack(v) for k, v in ref.items()}
@@ -208,17 +208,22 @@ def _load_parquet(args, wnids):
     else:
         ref = {'*': []}
     n = 0
-    for t in tables:
-        imgs = t.column(img_col).to_pylist()
-        labs = t.column(lab_col).to_pylist() if use_labels else [None] * len(imgs)
-        for im, lb in zip(imgs, labs):
+    def _rows():
+        for t in tables:
+            for batch in t.to_batches(max_chunksize=2000):
+                imgs = batch.column(img_col).to_pylist()
+                labs = batch.column(lab_col).to_pylist() if use_labels else [None] * len(imgs)
+                yield from zip(imgs, labs)
+    for im, lb in _rows():
+        if True:
             n += 1
             if use_labels and lb not in want:
                 continue
             raw = im['bytes'] if isinstance(im, dict) else im
-            pil = Image.open(io.BytesIO(raw))
+            pil = Image.open(io.BytesIO(raw)).convert('RGB')
             name = f'parquet#{n - 1}'
-            (ref[want[lb]] if use_labels else ref['*']).append((name, _variants(pil)))
+            # store the image only; variants are built one at a time in _pack (memory)
+            (ref[want[lb]] if use_labels else ref['*']).append((name, pil))
             if args.ref_limit and not use_labels and len(ref['*']) >= args.ref_limit:
                 break
     if use_labels:
@@ -233,14 +238,19 @@ def _pack(items):
     for small references; for big unlabeled sets (50k x 17 variants) the variant is rebuilt
     from the stored 64x64 original when re-scoring, to keep memory ~1 GB."""
     names, owner, vidx, thumbs, base = [], [], [], [], []
+    lazy = any(not isinstance(vs, list) for _, vs in items)
     for j, (n, vs) in enumerate(items):
+        if not isinstance(vs, list):
+            vs = _variants(vs)   # built now, dropped after this iteration
+            if j % 5000 == 0:
+                print(f'  indexed {j}/{len(items)} reference images', flush=True)
         names.append(n)
         base.append(np.asarray(vs[0].convert('RGB').resize((64, 64)), dtype=np.uint8))
         for k, v in enumerate(vs):
             owner.append(j); vidx.append(k); thumbs.append(_thumb(v).astype(np.float32))
     if not names:
         return None
-    small = len(owner) <= 20000
+    small = (not lazy) and len(owner) <= 20000
     out = {'names': names, 'owner': np.asarray(owner), 'vidx': np.asarray(vidx),
            'thumbs': np.stack(thumbs), 'base': np.stack(base), 'items': items if small else None}
     return out
