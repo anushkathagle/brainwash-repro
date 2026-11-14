@@ -101,8 +101,6 @@ sbatch --account=<ACCT> --time=06:00:00 --export=ALL,VARIANT=clean,NOISE_TAG=tin
 ```
 APPROACH, LAMB and LAMB_EMP come from the noise pkl; EVAL_TAG defaults to
 `<NOISE_TAG>_<VARIANT>_purify64_sigma<SIGMA_STAR>`.
-```bash
-```
 
 **3. Attacked arms** at the fixed σ\*: `VARIANT=ours` (reckless or cautious `NOISE_TAG`) and
 `VARIANT=uniform`. The undefended Arms A and B come from the normal `repro/sweep/stage4.sbatch`.
