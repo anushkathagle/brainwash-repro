@@ -16,7 +16,7 @@ Only one task's classes are needed (final task, 20-task split = classes 190-199)
 HOW MATCHING WORKS
     Every image (Tiny and ImageNet) is reduced to a 16x16 grayscale thumbnail,
     mean-subtracted and normalized; two images match if the correlation of the
-    thumbnails is near 1. Each ImageNet image is tried both squashed to a square
+    thumbnails is near 1; the top candidates are then re-scored at full 64x64 RGB. Each ImageNet image is tried both squashed to a square
     and center-cropped, since the exact way Tiny-ImageNet was resized is not
     documented. Each Tiny image is compared only with ImageNet images of its
     own class. Reported per Tiny image: the best correlation, and the gap to the
@@ -35,6 +35,10 @@ REFERENCE (ImageNet) FORMATS ACCEPTED -- give exactly one:
                              downsampled ImageNet (Imagenet64_val/val_data.npz, keys
                              data (N,12288) uint8 + labels 1..1000) + map_clsloc.txt
                              ("<wnid> <label> <name>" per line)
+    --ref_all_dir DIR        UNLABELED images, searched in full -- e.g. Kaggle
+                             ayaroshevskiy/downsampled-imagenet-64x64 valid_64x64/ (the
+                             van den Oord ImageNet-64 that improved-diffusion trained on;
+                             its valid split = ImageNet val, 50k PNGs, no class labels)
 
 USAGE
     # 1) main check: Tiny val vs ImageNet VAL
@@ -73,10 +77,23 @@ def _thumb(img64):
     return g / n if n > 1e-8 else g
 
 
+# Central-crop fractions tried on references that are ALREADY 64x64 squashed (e.g. the
+# van den Oord ImageNet-64): if Tiny center-cropped a W:H photo, its content equals the
+# central H/W (landscape) or W/H (portrait) of the squashed image. Covers 16:9 .. 10:9.
+_FRACS = (0.56, 0.60, 0.667, 0.70, 0.75, 0.80, 0.85, 0.90)
+
+
 def _variants(img):
-    """ImageNet image -> 64x64 renderings to try (squash, center-crop)."""
+    """ImageNet image -> 64x64 renderings to try."""
     img = img.convert('RGB')
     w, h = img.size
+    if (w, h) == (64, 64):  # already downsampled by squashing: try central crops too
+        out = [img]
+        for f in _FRACS:
+            d = 32 * f
+            out.append(img.crop((32 - d, 0, 32 + d, 64)).resize((64, 64), Image.BOX))  # was landscape
+            out.append(img.crop((0, 32 - d, 64, 32 + d)).resize((64, 64), Image.BOX))  # was portrait
+        return out
     out = [img.resize((64, 64), Image.BOX)]
     s = min(w, h)
     if w != h:
@@ -115,7 +132,7 @@ def _tiny_val_from_annotations(root, wnid):
 
 
 def load_ref(args, wnids):
-    """-> {wnid: [(name, [PIL 64x64 variants])]}"""
+    """-> {wnid (or '*' if unlabeled): packed arrays, see _pack}"""
     ref = {w: [] for w in wnids}
     if args.ref_dir:
         for w in wnids:
@@ -151,9 +168,53 @@ def load_ref(args, wnids):
             for i in np.nonzero(labels == lab_of[w])[0]:
                 arr = data[i].reshape(3, 64, 64).transpose(1, 2, 0)
                 ref[w].append((f'npz#{i}', [Image.fromarray(arr.astype(np.uint8))]))
+    elif args.ref_all_dir:
+        # UNLABELED reference (e.g. Kaggle "downsampled-imagenet-64x64" valid_64x64, whose
+        # files carry no class): every Tiny image is compared with ALL reference images.
+        files = sorted(f for f in glob.glob(os.path.join(args.ref_all_dir, '**', '*'), recursive=True)
+                       if f.lower().endswith(IMG_EXT))
+        if args.ref_limit:
+            files = files[:args.ref_limit]
+        print(f'loading {len(files)} unlabeled reference images from {args.ref_all_dir} ...', flush=True)
+        ref = {'*': [(os.path.relpath(f, args.ref_all_dir), _variants(Image.open(f))) for f in files]}
     else:
-        sys.exit('give one of --ref_dir, --ref_flat_dir + --ref_labels_csv, --ref_npz + --ref_map')
-    return ref
+        sys.exit('give one of --ref_dir, --ref_flat_dir + --ref_labels_csv, --ref_npz + --ref_map, --ref_all_dir')
+    return {k: _pack(v) for k, v in ref.items()}
+
+
+def _pack(items):
+    """[(name, [PIL variants])] -> dict of arrays. Full-res pixels are kept per VARIANT only
+    for small references; for big unlabeled sets (50k x 17 variants) the variant is rebuilt
+    from the stored 64x64 original when re-scoring, to keep memory ~1 GB."""
+    names, owner, vidx, thumbs, base = [], [], [], [], []
+    for j, (n, vs) in enumerate(items):
+        names.append(n)
+        base.append(np.asarray(vs[0].convert('RGB').resize((64, 64)), dtype=np.uint8))
+        for k, v in enumerate(vs):
+            owner.append(j); vidx.append(k); thumbs.append(_thumb(v).astype(np.float32))
+    if not names:
+        return None
+    small = len(owner) <= 20000
+    out = {'names': names, 'owner': np.asarray(owner), 'vidx': np.asarray(vidx),
+           'thumbs': np.stack(thumbs), 'base': np.stack(base), 'items': items if small else None}
+    return out
+
+
+def _variant_pixels(R, row_i):
+    j, k = int(R['owner'][row_i]), int(R['vidx'][row_i])
+    if R['items'] is not None:
+        v = R['items'][j][1][k]
+    else:
+        v = _variants(Image.fromarray(R['base'][j]))[k]
+    return np.asarray(v.convert('RGB').resize((64, 64)), dtype=np.uint8)
+
+
+def _full_corr(a_uint8, B_uint8):
+    """zero-mean normalized correlation of one 64x64x3 image against many, at full resolution."""
+    a = a_uint8.astype(np.float64).ravel(); a -= a.mean(); a /= max(np.linalg.norm(a), 1e-8)
+    B = B_uint8.reshape(len(B_uint8), -1).astype(np.float64)
+    B -= B.mean(1, keepdims=True); B /= np.maximum(np.linalg.norm(B, axis=1, keepdims=True), 1e-8)
+    return B @ a
 
 
 # ---------------------------------------------------------------- main
@@ -190,8 +251,11 @@ def main():
     ap.add_argument('--ref_labels_csv')
     ap.add_argument('--ref_npz')
     ap.add_argument('--ref_map')
-    ap.add_argument('--dup_thresh', type=float, default=0.95,
-                    help='best correlation counted as a duplicate (also needs a clear gap to 2nd best)')
+    ap.add_argument('--ref_all_dir', help='UNLABELED folder of reference images (searched in full)')
+    ap.add_argument('--ref_limit', type=int, default=0, help='debug: only load the first N reference images')
+    ap.add_argument('--topk', type=int, default=20, help='candidates re-scored at full resolution')
+    ap.add_argument('--dup_thresh', type=float, default=0.90,
+                    help='best FULL-RES correlation counted as a duplicate (also needs a gap to 2nd best)')
     ap.add_argument('--gap_thresh', type=float, default=0.10)
     ap.add_argument('--out', default='repro/artifacts/tinyImagenet_files/provenance/check')
     args = ap.parse_args()
@@ -200,32 +264,36 @@ def main():
     tiny = load_tiny(args.tiny_root, args.tiny_split, args.wnids, args.n_tiny)
     ref = load_ref(args, args.wnids)
     print(f'Tiny {args.tiny_split}: {sum(map(len, tiny.values()))} images; reference: '
-          f'{sum(map(len, ref.values()))} images over {len(args.wnids)} classes')
+          f'{sum(len(v["names"]) for v in ref.values() if v)} images '
+          f'({"unlabeled: searching all" if "*" in ref else f"{len(args.wnids)} classes"})')
 
     rows, sheet_pairs = [], []
     for w in args.wnids:
-        if not ref[w]:
+        R = ref.get(w) if '*' not in ref else ref['*']
+        if R is None:
             print(f'  WARNING: no reference images for {w} -- check the reference path / labels')
             continue
-        # one row per (ref image, variant); remember which ref image each row belongs to
-        R, owner, rimg = [], [], []
-        for j, (_, vs) in enumerate(ref[w]):
-            for v in vs:
-                R.append(_thumb(v)); owner.append(j); rimg.append(v)
-        R, owner = np.stack(R), np.asarray(owner)
+        n_ref = len(R['names'])
         for fname, timg in tiny[w]:
-            sims = R @ _thumb(timg)
-            per_ref = np.full(len(ref[w]), -1.0)
-            np.maximum.at(per_ref, owner, sims)
-            order = np.argsort(per_ref)[::-1]
-            best, second = per_ref[order[0]], (per_ref[order[1]] if len(order) > 1 else -1.0)
-            bi = int(np.argmax(sims))
+            # coarse: 16x16 thumbnails against everything; fine: full 64x64 RGB on the top-K
+            sims = R['thumbs'] @ _thumb(timg).astype(np.float32)
+            top = np.argpartition(-sims, min(args.topk, len(sims) - 1))[:args.topk]
+            cand = np.stack([_variant_pixels(R, i) for i in top])
+            fine = _full_corr(np.asarray(timg.resize((64, 64))), cand)
+            per = {}
+            for row_i, c in zip(top, fine):
+                o = int(R['owner'][row_i])
+                if c > per.get(o, (-2.0, None))[0]:
+                    per[o] = (float(c), int(row_i))
+            ranked = sorted(per.items(), key=lambda kv: kv[1][0], reverse=True)
+            (bo, (best, brow)) = ranked[0]
+            second = ranked[1][1][0] if len(ranked) > 1 else -1.0
             dup = best >= args.dup_thresh and best - second >= args.gap_thresh
-            rows.append((w, os.path.basename(fname), ref[w][order[0]][0], best, second, dup))
-            sheet_pairs.append((timg, rimg[bi], best))
+            rows.append((w, os.path.basename(fname), R['names'][bo], best, second, dup))
+            sheet_pairs.append((timg, Image.fromarray(_variant_pixels(R, brow)), best))
         n_w = sum(1 for r in rows if r[0] == w)
         d_w = sum(1 for r in rows if r[0] == w and r[5])
-        print(f'  {w}: {d_w}/{n_w} duplicates (ref images: {len(ref[w])})')
+        print(f'  {w}: {d_w}/{n_w} duplicates (reference images searched: {n_ref})', flush=True)
 
     if not rows:
         sys.exit('nothing compared')
