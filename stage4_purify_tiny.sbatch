@@ -31,6 +31,8 @@
 # RESUMABILITY: identical mechanism to stage4_purify_mini.sbatch -- PURIFY_CACHE_DIR
 # holds per-chunk progress; if the job dies, re-submit the EXACT same command.
 set -eo pipefail
+# All default paths below are relative to the repo root -- submit from there.
+[[ -f purify_tiny_layer1a.py ]] || { echo "FATAL: run sbatch from the repo root (no ./purify_tiny_layer1a.py in $PWD)"; exit 1; }
 
 : "${EVAL_TAG:?set EVAL_TAG (e.g. tiny_ewc_reckless_eps0.3_purify64_sigma0.5)}"
 : "${VARIANT:?set VARIANT (clean|uniform|ours)}"
@@ -50,8 +52,8 @@ set -eo pipefail
 : "${FP16:=0}"
 : "${BACKEND:=auto}"
 : "${TINY_NPZ:=./data/tiny_imagenet.npz}"
-: "${PURIFY_CKPT:=/storage/work/axt5884/projects/myworkflow/brainwash-repro/repro/artifacts/diffusion/imagenet64_uncond_100M_1500K.pt}"
-: "${OUT_DIR:=/storage/work/axt5884/projects/myworkflow/brainwash-repro/repro/artifacts/tinyImagenet_files/purify_results}"
+: "${PURIFY_CKPT:=repro/artifacts/diffusion/imagenet64_uncond_100M_1500K.pt}"
+: "${OUT_DIR:=repro/artifacts/tinyImagenet_files/purify_results}"
 : "${PURIFY_CACHE_DIR:=${OUT_DIR}/cache}"   # on by default -- this is what makes resumability actually happen
 : "${RESULTS_DIR:=repro/sweep/results_purify}"   # separate from results/ so purify logs never collide with undefended stage4.sbatch logs
 : "${ID_PATH:=/storage/home/axt5884/improved-diffusion}"

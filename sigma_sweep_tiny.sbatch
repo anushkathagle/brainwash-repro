@@ -22,6 +22,8 @@
 #           PROBE_EPS(0.0313725) RESPACE("") BACKEND(auto) FP16(0) TINY_NPZ PURIFY_CKPT
 #           OUT_DIR ID_PATH ENV_PREFIX
 set -eo pipefail
+# All default paths below are relative to the repo root -- submit from there.
+[[ -f sigma_sweep_tiny.py ]] || { echo "FATAL: run sbatch from the repo root (no ./sigma_sweep_tiny.py in $PWD)"; exit 1; }
 
 : "${SIGMAS:=0 0.1 0.25 0.5 1.0}"
 : "${N_IMAGES:=256}"
@@ -34,8 +36,8 @@ set -eo pipefail
 : "${FP16:=0}"
 : "${SEED:=0}"
 : "${TINY_NPZ:=./data/tiny_imagenet.npz}"
-: "${PURIFY_CKPT:=/storage/work/axt5884/projects/myworkflow/brainwash-repro/repro/artifacts/diffusion/imagenet64_uncond_100M_1500K.pt}"
-: "${OUT_DIR:=/storage/work/axt5884/projects/myworkflow/brainwash-repro/repro/artifacts/tinyImagenet_files/sigma_sweep}"
+: "${PURIFY_CKPT:=repro/artifacts/diffusion/imagenet64_uncond_100M_1500K.pt}"
+: "${OUT_DIR:=repro/artifacts/tinyImagenet_files/sigma_sweep}"
 : "${ID_PATH:=/storage/home/axt5884/improved-diffusion}"
 
 : "${CONDA_SH:=/swst/apps/anaconda3/2021.05_gcc-8.5.0/etc/profile.d/conda.sh}"

@@ -70,10 +70,11 @@ from diffpure_imagenet64 import load_imagenet64_net, purify_in_chunks, cache_key
 
 tstart = time.time()
 
-# >>> LAYER1A: default output location for acc_mat_*.npy (kept off the repo root
-# and off the 16 GB home quota).
-DEFAULT_OUT_DIR = ('/storage/work/axt5884/projects/myworkflow/brainwash-repro/'
-                   'repro/artifacts/tinyImagenet_files/purify_results')
+# >>> LAYER1A: default output location for acc_mat_*.npy (kept off the repo root).
+# Relative to THIS file, so the checkout can live in any folder; keep the
+# checkout on /storage/work (not the 16 GB home quota).
+DEFAULT_OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               'repro', 'artifacts', 'tinyImagenet_files', 'purify_results')
 # <<< LAYER1A
 
 
