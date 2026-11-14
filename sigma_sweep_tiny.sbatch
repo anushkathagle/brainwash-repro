@@ -40,6 +40,11 @@ set -eo pipefail
 : "${OUT_DIR:=repro/artifacts/tinyImagenet_files/sigma_sweep}"
 : "${ID_PATH:=/storage/home/axt5884/improved-diffusion}"
 
+# Fail fast (before conda) on missing inputs. Run ./check_tiny_setup.sh on the
+# login node BEFORE submitting -- these checks only run once the job leaves the queue.
+[[ -f "${PURIFY_CKPT}" ]] || { echo "MISSING purifier ckpt: ${PURIFY_CKPT}"; echo "  wget -P $(dirname "${PURIFY_CKPT}") https://openaipublic.blob.core.windows.net/diffusion/march-2021/imagenet64_uncond_100M_1500K.pt"; exit 2; }
+[[ -f "${TINY_NPZ}" ]] || { echo "MISSING ${TINY_NPZ} (python repro/prepare_tiny_imagenet.py)"; exit 2; }
+
 : "${CONDA_SH:=/swst/apps/anaconda3/2021.05_gcc-8.5.0/etc/profile.d/conda.sh}"
 if [ -f "${CONDA_SH}" ]; then source "${CONDA_SH}"; else module load anaconda3 2>/dev/null || module load anaconda 2>/dev/null || true; eval "$(conda shell.bash hook)"; fi
 : "${ENV_PREFIX:=/storage/home/axt5884/work/conda/myworkflow}"
@@ -48,8 +53,6 @@ export PYTHONPATH="${ID_PATH}:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
 mkdir -p logs "${OUT_DIR}"
 
-[[ -f "${PURIFY_CKPT}" ]] || { echo "MISSING purifier ckpt: ${PURIFY_CKPT}"; echo "  wget -P $(dirname "${PURIFY_CKPT}") https://openaipublic.blob.core.windows.net/diffusion/march-2021/imagenet64_uncond_100M_1500K.pt"; exit 2; }
-[[ -f "${TINY_NPZ}" ]] || { echo "MISSING ${TINY_NPZ} (python repro/prepare_tiny_imagenet.py)"; exit 2; }
 
 EXTRA=()
 TAG="probe"

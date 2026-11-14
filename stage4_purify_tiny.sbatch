@@ -59,6 +59,10 @@ set -eo pipefail
 : "${ID_PATH:=/storage/home/axt5884/improved-diffusion}"
 
 # --- conda activation (same pattern as repro/sweep/stage3.sbatch / stage4.sbatch) ---
+# Fail fast (before conda) on missing inputs -- see ./check_tiny_setup.sh.
+[[ -f "${PURIFY_CKPT}" ]] || { echo "MISSING purifier ckpt: ${PURIFY_CKPT}"; echo "  wget -P $(dirname "${PURIFY_CKPT}") https://openaipublic.blob.core.windows.net/diffusion/march-2021/imagenet64_uncond_100M_1500K.pt"; exit 2; }
+[[ -f "${TINY_NPZ}" ]] || { echo "MISSING ${TINY_NPZ} (python repro/prepare_tiny_imagenet.py)"; exit 2; }
+
 : "${CONDA_SH:=/swst/apps/anaconda3/2021.05_gcc-8.5.0/etc/profile.d/conda.sh}"
 if [ -f "${CONDA_SH}" ]; then source "${CONDA_SH}"; else module load anaconda3 2>/dev/null || module load anaconda 2>/dev/null || true; eval "$(conda shell.bash hook)"; fi
 : "${ENV_PREFIX:=/storage/home/axt5884/work/conda/myworkflow}"
@@ -83,8 +87,6 @@ python -c "import torch; print('CUDA:', torch.cuda.is_available(), torch.cuda.ge
 # locate the noise pkl (newest = best/final for that config) -- same lookup as stage4.sbatch
 NOISE_PKL=$(ls -t "repro/sweep/noise/${NOISE_TAG}"/*.pkl 2>/dev/null | head -1 || true)
 [[ -n "${NOISE_PKL}" && -f "${NOISE_PKL}" ]] || { echo "MISSING noise pkl in repro/sweep/noise/${NOISE_TAG}/ (run stage 3 first)"; exit 2; }
-[[ -f "${PURIFY_CKPT}" ]] || { echo "MISSING purifier ckpt: ${PURIFY_CKPT}"; echo "  wget -P $(dirname "${PURIFY_CKPT}") https://openaipublic.blob.core.windows.net/diffusion/march-2021/imagenet64_uncond_100M_1500K.pt"; exit 2; }
-[[ -f "${TINY_NPZ}" ]] || { echo "MISSING ${TINY_NPZ} (python repro/prepare_tiny_imagenet.py)"; exit 2; }
 
 case "${VARIANT}" in
   clean)   NOISE_ARGS="" ;;
