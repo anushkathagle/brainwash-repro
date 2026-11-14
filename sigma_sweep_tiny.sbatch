@@ -8,11 +8,16 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --partition=standard
 #SBATCH --mem=64G
-#SBATCH --time=02:00:00
+#SBATCH --time=03:00:00
 #
 # Training-free sigma_star sweep + seen/unseen memorization check for the
 # Tiny-ImageNet ImageNet-64 purifier (sigma_sweep_tiny.py). Run this BEFORE any
-# stage4_purify_tiny.sbatch job. Takes minutes, not hours.
+# stage4_purify_tiny.sbatch job.
+# COST (measured, A100, fp32, full 4000-step schedule): ~2 ms per image per reverse
+# step, and each sigma purifies 3 x N_IMAGES images (clean, perturbed, val). With
+# N_IMAGES=256: sigma 0.1 ~6 min, 0.25 ~15, 0.5 ~29, 1.0 ~50 -> ~100 min for the
+# default list. Split it with SIGMAS="..." if needed; each SIGMAS list gets its own
+# TSV, and rows are saved after every sigma.
 #
 #   sbatch --account=<ACCT> sigma_sweep_tiny.sbatch
 #   sbatch --account=<ACCT> --export=ALL,NOISE_TAG=tiny_ewc_reckless_eps0.3 sigma_sweep_tiny.sbatch
@@ -68,4 +73,4 @@ python sigma_sweep_tiny.py \
     --purify_ckpt "${PURIFY_CKPT}" --tiny_npz "${TINY_NPZ}" \
     --tasknum "${TASKNUM}" --task "${TASK}" --sigmas ${SIGMAS} \
     --n_images "${N_IMAGES}" --probe_eps "${PROBE_EPS}" --backend "${BACKEND}" --seed "${SEED}" \
-    --out "${OUT_DIR}/sweep_${TAG}.tsv" "${EXTRA[@]}"
+    --out "${OUT_DIR}/sweep_${TAG}_s${SIGMAS// /_}.tsv" "${EXTRA[@]}"

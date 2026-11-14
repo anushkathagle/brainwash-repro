@@ -175,14 +175,16 @@ def main():
               f'PSNR seen={row["psnr_seen"]:.2f} unseen={row["psnr_unseen"]:.2f} '
               f'(gap {row["psnr_gap_seen_minus_unseen"]:+.2f} dB) | {sec_per_img*1e3:.1f} ms/img', flush=True)
 
-    cols = list(rows[0].keys())
-    with open(args.out, 'w') as fh:
-        fh.write(f'# task={args.task}/{args.tasknum} n={len(x_seen)} perturbation={delta_src} '
-                 f'respace={args.respace or "none"} backend={net["backend"]} seed={args.seed}\n')
-        fh.write('\t'.join(cols) + '\n')
-        for r in rows:
-            fh.write('\t'.join(f'{r[c]:.6g}' if isinstance(r[c], float) else str(r[c]) for c in cols) + '\n')
-    print(f'[sweep] wrote {args.out}')
+        # Rewrite the TSV after EVERY sigma, so a cancelled / timed-out job keeps
+        # the rows it already finished (large sigma_star is the slow part).
+        cols = list(rows[0].keys())
+        with open(args.out, 'w') as fh:
+            fh.write(f'# task={args.task}/{args.tasknum} n={len(x_seen)} perturbation={delta_src} '
+                     f'respace={args.respace or "none"} backend={net["backend"]} seed={args.seed}\n')
+            fh.write('\t'.join(cols) + '\n')
+            for r in rows:
+                fh.write('\t'.join(f'{r[c]:.6g}' if isinstance(r[c], float) else str(r[c]) for c in cols) + '\n')
+        print(f'[sweep] wrote {len(rows)} row(s) -> {args.out}', flush=True)
     if args.save_samples > 0:
         sp = os.path.splitext(args.out)[0] + '_samples.pt'
         torch.save(samples, sp)
