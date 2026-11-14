@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=bw_sweep_tiny
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --gres=gpu:a100:1
+#SBATCH --partition=standard
+#SBATCH --mem=64G
+#SBATCH --time=02:00:00
+#
+# Training-free sigma_star sweep + seen/unseen memorization check for the
+# Tiny-ImageNet ImageNet-64 purifier (sigma_sweep_tiny.py). Run this BEFORE any
+# stage4_purify_tiny.sbatch job. Takes minutes, not hours.
+#
+#   sbatch --account=<ACCT> sigma_sweep_tiny.sbatch
+#   sbatch --account=<ACCT> --export=ALL,NOISE_TAG=tiny_ewc_reckless_eps0.3 sigma_sweep_tiny.sbatch
+#
+# Optional: SIGMAS("0 0.1 0.25 0.5 1.0") N_IMAGES(256) TASKNUM(20) TASK(TASKNUM-1)
+#           NOISE_TAG (use the real stage-3 poison for survival; else a random-sign probe)
+#           PROBE_EPS(0.0313725) RESPACE("") BACKEND(auto) FP16(0) TINY_NPZ PURIFY_CKPT
+#           OUT_DIR ID_PATH ENV_PREFIX
+set -eo pipefail
+
+: "${SIGMAS:=0 0.1 0.25 0.5 1.0}"
+: "${N_IMAGES:=256}"
+: "${TASKNUM:=20}"
+: "${TASK:=$((TASKNUM - 1))}"
+: "${NOISE_TAG:=}"
+: "${PROBE_EPS:=0.0313725}"
+: "${RESPACE:=}"
+: "${BACKEND:=auto}"
+: "${FP16:=0}"
+: "${SEED:=0}"
+: "${TINY_NPZ:=./data/tiny_imagenet.npz}"
+: "${PURIFY_CKPT:=/storage/work/axt5884/projects/myworkflow/brainwash-repro/repro/artifacts/diffusion/imagenet64_uncond_100M_1500K.pt}"
+: "${OUT_DIR:=/storage/work/axt5884/projects/myworkflow/brainwash-repro/repro/artifacts/tinyImagenet_files/sigma_sweep}"
+: "${ID_PATH:=/storage/home/axt5884/improved-diffusion}"
+
+: "${CONDA_SH:=/swst/apps/anaconda3/2021.05_gcc-8.5.0/etc/profile.d/conda.sh}"
+if [ -f "${CONDA_SH}" ]; then source "${CONDA_SH}"; else module load anaconda3 2>/dev/null || module load anaconda 2>/dev/null || true; eval "$(conda shell.bash hook)"; fi
+: "${ENV_PREFIX:=/storage/home/axt5884/work/conda/myworkflow}"
+conda activate "${ENV_PREFIX}"
+export PYTHONPATH="${ID_PATH}:${PYTHONPATH:-}"
+export PYTHONUNBUFFERED=1
+mkdir -p logs "${OUT_DIR}"
+
+[[ -f "${PURIFY_CKPT}" ]] || { echo "MISSING purifier ckpt: ${PURIFY_CKPT}"; echo "  wget -P $(dirname "${PURIFY_CKPT}") https://openaipublic.blob.core.windows.net/diffusion/march-2021/imagenet64_uncond_100M_1500K.pt"; exit 2; }
+[[ -f "${TINY_NPZ}" ]] || { echo "MISSING ${TINY_NPZ} (python repro/prepare_tiny_imagenet.py)"; exit 2; }
+
+EXTRA=()
+TAG="probe"
+if [[ -n "${NOISE_TAG}" ]]; then
+  NOISE_PKL=$(ls -t "repro/sweep/noise/${NOISE_TAG}"/*.pkl 2>/dev/null | head -1 || true)
+  [[ -n "${NOISE_PKL}" ]] || { echo "MISSING noise pkl in repro/sweep/noise/${NOISE_TAG}/"; exit 2; }
+  EXTRA+=(--noise_pkl "${NOISE_PKL}"); TAG="${NOISE_TAG}"
+fi
+[[ -n "${RESPACE}" ]] && { EXTRA+=(--respace "${RESPACE}"); TAG="${TAG}_sp${RESPACE}"; }
+[[ "${FP16}" == "1" ]] && EXTRA+=(--fp16)
+
+python sigma_sweep_tiny.py \
+    --purify_ckpt "${PURIFY_CKPT}" --tiny_npz "${TINY_NPZ}" \
+    --tasknum "${TASKNUM}" --task "${TASK}" --sigmas ${SIGMAS} \
+    --n_images "${N_IMAGES}" --probe_eps "${PROBE_EPS}" --backend "${BACKEND}" --seed "${SEED}" \
+    --out "${OUT_DIR}/sweep_${TAG}.tsv" "${EXTRA[@]}"
