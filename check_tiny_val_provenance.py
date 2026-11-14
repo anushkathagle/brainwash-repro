@@ -168,6 +168,8 @@ def load_ref(args, wnids):
             for i in np.nonzero(labels == lab_of[w])[0]:
                 arr = data[i].reshape(3, 64, 64).transpose(1, 2, 0)
                 ref[w].append((f'npz#{i}', [Image.fromarray(arr.astype(np.uint8))]))
+    elif args.ref_parquet:
+        ref = _load_parquet(args, wnids)
     elif args.ref_all_dir:
         # UNLABELED reference (e.g. Kaggle "downsampled-imagenet-64x64" valid_64x64, whose
         # files carry no class): every Tiny image is compared with ALL reference images.
@@ -178,8 +180,52 @@ def load_ref(args, wnids):
         print(f'loading {len(files)} unlabeled reference images from {args.ref_all_dir} ...', flush=True)
         ref = {'*': [(os.path.relpath(f, args.ref_all_dir), _variants(Image.open(f))) for f in files]}
     else:
-        sys.exit('give one of --ref_dir, --ref_flat_dir + --ref_labels_csv, --ref_npz + --ref_map, --ref_all_dir')
+        sys.exit('give one of --ref_dir, --ref_flat_dir + --ref_labels_csv, --ref_npz + --ref_map, --ref_all_dir, --ref_parquet')
     return {k: _pack(v) for k, v in ref.items()}
+
+
+def _load_parquet(args, wnids):
+    """HF-style parquet: an image column (dict with 'bytes', or raw bytes) and maybe an int label."""
+    import io
+    import pyarrow.parquet as pq
+    files = sorted(glob.glob(args.ref_parquet)) if any(c in args.ref_parquet for c in '*?') else [args.ref_parquet]
+    tables = [pq.read_table(f) for f in files]
+    cols = tables[0].column_names
+    img_col = next((c for c in cols if c.lower() in ('image', 'img', 'jpg', 'png')), None)
+    lab_col = next((c for c in cols if c.lower() in ('label', 'labels', 'class', 'cls')), None)
+    print(f'parquet columns: {cols} -> image={img_col}, label={lab_col}', flush=True)
+    if img_col is None:
+        sys.exit('no image column found; send this column list to adjust the reader')
+    use_labels = lab_col is not None and args.ref_label_order != 'none'
+    if use_labels:
+        if not args.imagenet_wnids:
+            sys.exit('parquet has labels: pass --imagenet_wnids <file with the 1000 wnids> '
+                     '(or --ref_label_order none to search all images instead)')
+        all_w = sorted(l.strip() for l in open(args.imagenet_wnids) if l.strip())
+        assert len(all_w) == 1000, f'expected 1000 wnids, got {len(all_w)}'
+        want = {all_w.index(w): w for w in wnids}
+        ref = {w: [] for w in wnids}
+    else:
+        ref = {'*': []}
+    n = 0
+    for t in tables:
+        imgs = t.column(img_col).to_pylist()
+        labs = t.column(lab_col).to_pylist() if use_labels else [None] * len(imgs)
+        for im, lb in zip(imgs, labs):
+            n += 1
+            if use_labels and lb not in want:
+                continue
+            raw = im['bytes'] if isinstance(im, dict) else im
+            pil = Image.open(io.BytesIO(raw))
+            name = f'parquet#{n - 1}'
+            (ref[want[lb]] if use_labels else ref['*']).append((name, _variants(pil)))
+            if args.ref_limit and not use_labels and len(ref['*']) >= args.ref_limit:
+                break
+    if use_labels:
+        counts = {w: len(v) for w, v in ref.items()}
+        print(f'per-class reference counts: {counts}  (ImageNet val has 50 per class -- if these '
+              f'are not ~50, the label->wnid order is wrong: rerun with --ref_label_order none)')
+    return ref
 
 
 def _pack(items):
@@ -251,6 +297,13 @@ def main():
     ap.add_argument('--ref_labels_csv')
     ap.add_argument('--ref_npz')
     ap.add_argument('--ref_map')
+    ap.add_argument('--ref_parquet', help='parquet file(s) with an image column (+ optional int label), '
+                    'e.g. HF ChocolateDave/imagenet-64 data/val-00000-of-00001.parquet')
+    ap.add_argument('--ref_label_order', default='sorted',
+                    help="how integer labels map to wnids: 'sorted' (standard ImageNet-1k order = sorted "
+                         "wnids, needs --imagenet_wnids or a train folder) or 'none' (ignore labels)")
+    ap.add_argument('--imagenet_wnids', default=None,
+                    help='text file with the 1000 ImageNet wnids (one per line); only for labelled parquet')
     ap.add_argument('--ref_all_dir', help='UNLABELED folder of reference images (searched in full)')
     ap.add_argument('--ref_limit', type=int, default=0, help='debug: only load the first N reference images')
     ap.add_argument('--topk', type=int, default=20, help='candidates re-scored at full resolution')
