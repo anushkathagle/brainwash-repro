@@ -69,7 +69,7 @@ of the cache key and the output tag (`_sp1000`), so the two settings never get m
 
 **0. Prerequisite.** Tiny-ImageNet has no released victim or inversion artifacts, so stages 1–3
 must be run first (`REPRODUCE.md` §5). That produces `repro/sweep/noise/<NOISE_TAG>/*.pkl` and
-the victim's `LAMB`. The sweep in step 1 can run before that, using its random-sign probe.
+the noise pkls (the approach, `lamb` and `lamb_emp` are read from them automatically). The sweep in step 1 can run before that, using its random-sign probe.
 
 **1. σ\* sweep plus the memorization check** (minutes):
 ```bash
@@ -97,7 +97,11 @@ comparability with CIFAR-100 unless the sweep gives a clear reason not to.
 
 **2. Arm D (clean + purify):** the purifier's own cost, expected to be about 0, as on CIFAR-100.
 ```bash
-sbatch --account=<ACCT> --export=ALL,EVAL_TAG=tiny_ewc_clean_purify64_sigma0.5,VARIANT=clean,NOISE_TAG=tiny_ewc_reckless_eps0.3,LAMB=<lamb> stage4_purify_tiny.sbatch
+sbatch --account=<ACCT> --time=06:00:00 --export=ALL,VARIANT=clean,NOISE_TAG=tiny_ewc_reckless_eps0.3 stage4_purify_tiny.sbatch
+```
+APPROACH, LAMB and LAMB_EMP come from the noise pkl; EVAL_TAG defaults to
+`<NOISE_TAG>_<VARIANT>_purify64_sigma<SIGMA_STAR>`.
+```bash
 ```
 
 **3. Attacked arms** at the fixed σ\*: `VARIANT=ours` (reckless or cautious `NOISE_TAG`) and
@@ -111,7 +115,7 @@ Results go to `repro/sweep/results_purify/<EVAL_TAG>.log` and
 ## Not included
 
 * No tiny rows were added to `repro/sweep/configs.tsv`, and there is no tiny version of
-  `submit_sweep_purify.sh`. Tiny has no checkpoint or LAMB until stages 1–3 have run.
+  `submit_sweep_purify.sh`. Tiny has no checkpoints until stages 1–3 have run.
   Once they have, submit the arms by hand as above, or add a tiny configs file.
 * Not run on the real checkpoint here: the download host was blocked in the setup sandbox.
   The pipeline was checked on CPU with random weights in the same architecture: both backends,
