@@ -9,6 +9,10 @@ Spec strings for --dataset:
   bw_poisoned:/path.pkl  the poisoned BrainWash task-T training set from a stage-3 noise pkl, i.e. the
                          PureVQ-GAN paper's own protocol (purifier trained on the poisoned training set).
                          Needs --bw_experiment.
+  bw_prior:/path.pkl     the CLEAN training images of the n-1 EARLIER tasks (tasks 0..lasttask-1) of the same split. In-distribution
+                         and unpoisoned (BrainWash poisons only the last task) but needs prior-task images, which regularization-based CL
+                         discards: an ORACLE / generative-replay-style setting, not the storage-free defender of the proposal.
+                         Needs --bw_experiment (and --bw_tasknum if not 10).
   fake                   random images (smoke tests only)
 Multiple specs can be joined with '+', e.g. 'cifar10+stl10'.
 """
@@ -82,6 +86,16 @@ def load_brainwash_task(experiment, noise_pkl, lasttask=None, tasknum=10):
     return _to_uint8_nchw(x)
 
 
+def load_brainwash_prior(experiment, noise_pkl, lasttask=None, tasknum=10, _data=None):
+    """Clean train images of tasks 0..lasttask-1 (the tasks the victim learned BEFORE the poisoned one). Test sets untouched."""
+    ck = pkl.load(open(noise_pkl, 'rb'))
+    lasttask = ck['pretrained_ckpt']['task_num'] if lasttask is None else lasttask
+    data = _data if _data is not None else load_brainwash_split(experiment, tasknum)
+    xs = [_to_uint8_nchw(data[t]['train']['x']) for t in range(lasttask)]
+    print(f'[data] bw_prior: tasks 0..{lasttask - 1} -> {sum(len(x) for x in xs)} clean train images')
+    return torch.cat(xs)
+
+
 def load_brainwash_split(experiment, tasknum=10):
     if REPO_ROOT not in sys.path:
         sys.path.insert(0, REPO_ROOT)
@@ -106,7 +120,7 @@ def load_brainwash_split(experiment, tasknum=10):
     return data
 
 
-def load_images(spec, img_size, root='./data', bw_experiment=None, n_fake=512):
+def load_images(spec, img_size, root='./data', bw_experiment=None, n_fake=512, bw_tasknum=10):
     parts = []
     for s in spec.split('+'):
         kind, _, arg = s.partition(':')
@@ -122,7 +136,11 @@ def load_images(spec, img_size, root='./data', bw_experiment=None, n_fake=512):
         elif kind == 'bw_poisoned':
             if not bw_experiment:
                 raise ValueError('bw_poisoned needs --bw_experiment')
-            x = load_brainwash_task(bw_experiment, arg)
+            x = load_brainwash_task(bw_experiment, arg, tasknum=bw_tasknum)
+        elif kind == 'bw_prior':
+            if not bw_experiment:
+                raise ValueError('bw_prior needs --bw_experiment')
+            x = load_brainwash_prior(bw_experiment, arg, tasknum=bw_tasknum)
         elif kind == 'fake':
             x = torch.randint(0, 256, (n_fake, 3, img_size, img_size), dtype=torch.uint8)
         else:

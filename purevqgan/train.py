@@ -32,7 +32,8 @@ def get_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--dataset', default='cifar10', help="see purevqgan/data.py (e.g. cifar10, stl10, npy:x.npy, 'a+b')")
     p.add_argument('--data_root', default='./data')
-    p.add_argument('--bw_experiment', default=None, help='for --dataset bw_poisoned:<pkl>')
+    p.add_argument('--bw_experiment', default=None, help='for --dataset bw_poisoned:<pkl> / bw_prior:<pkl>')
+    p.add_argument('--bw_tasknum', type=int, default=10, help='number of tasks in the split (20 for Tiny-ImageNet)')
     p.add_argument('--out', required=True, help='output directory')
     # architecture
     p.add_argument('--img_size', type=int, default=32)
@@ -104,7 +105,8 @@ def main(argv=None):
     np.random.seed(args.seed)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    x_all = load_images(args.dataset, args.img_size, root=args.data_root, bw_experiment=args.bw_experiment)
+    x_all = load_images(args.dataset, args.img_size, root=args.data_root, bw_experiment=args.bw_experiment,
+                       bw_tasknum=args.bw_tasknum)
     perm = torch.randperm(len(x_all))
     n_val = min(args.val_size, len(x_all) // 10)
     xval, xtr = x_all[perm[:n_val]], x_all[perm[n_val:]]
