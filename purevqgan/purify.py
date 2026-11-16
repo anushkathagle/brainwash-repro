@@ -1,11 +1,11 @@
 """Apply a trained PureVQ-GAN purifier, and measure how much of a BrainWash perturbation survives it.
 
 Library use (this is what purify_layer1b.py calls):
-    G = load_purifier('purifiers/cifar10_K512/purifier.pt')
+    G = load_purifier('repro/artifacts/purifier/A_c10_K512_L8/purifier.pt')
     x_pure = purify_tensor(G, x, passes=1)
 
 Stand-alone diagnostic (no CL training; seconds on a GPU) -- useful to pre-screen sweep points:
-    python -m purevqgan.purify --purifier purifiers/cifar10_K512/purifier.pt \
+    python -m purevqgan.purify --purifier repro/artifacts/purifier/A_c10_K512_L8/purifier.pt \
         --experiment split_cifar100 --noise_pkl repro/sweep/noise/cifar100_ewc_cautious_eps0.1/<file>.pkl
 """
 import argparse

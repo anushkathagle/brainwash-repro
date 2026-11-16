@@ -15,7 +15,7 @@
 #   PureVQ-GAN : PURIFIER=<purifier.pt> [PURIFY_PASSES=1]
 #   PureGen-EBM: EBM_STEPS=100 EBM_EPS=0.025 [EBM_INIT_NOISE=0 EBM_TEMP=1e-4] PUREGEN_REPO=<clone> [EBM_PATH=<local dir>]
 #                (compute nodes may be offline: pip install huggingface_hub safetensors and download the EBM on a login node)
-#   Outputs: RESULTS_DIR/<EVAL_TAG>.log (default repro/defense/results) and acc_mat_*.npy + summary.tsv in OUT_DIR.
+#   Outputs: RESULTS_DIR/<EVAL_TAG>.log (default repro/sweep/purevq_results) and acc_mat_*.npy + summary.tsv in OUT_DIR.
 # Parameterized STAGE 4 — evaluate noise by resuming CL on the poisoned task; report BWT/Acc.
 #
 # Driven by env vars (pass via submit_sweep.sh):
@@ -42,7 +42,7 @@ set -eo pipefail
 : "${EBM_INIT_NOISE:=0}"
 : "${EBM_PATH:=SunayBhat1/puregen-ebm-cinic10-imagenet}"
 : "${PUREGEN_REPO:=}"
-: "${RESULTS_DIR:=repro/defense/results}"
+: "${RESULTS_DIR:=repro/sweep/purevq_results}"
 : "${OUT_DIR:=${RESULTS_DIR}/layer1b_out}"
 : "${EVAL_TAG:?set EVAL_TAG (e.g. cifar100_ewc_uniform_eps0.3)}"
 : "${VARIANT:?set VARIANT (clean|uniform|ours)}"

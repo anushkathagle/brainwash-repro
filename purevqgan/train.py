@@ -6,11 +6,11 @@ Defaults = Appendix B.1: Adam lr 4e-4, batch 256, 100 epochs, beta 0.25, lambda 
 
 Examples
   # CIFAR-100 victim, purifier trained on generic natural images (CIFAR-10), paper hyper-parameters
-  python -m purevqgan.train --dataset cifar10 --img_size 32 --latent_size 8 --out purifiers/cifar10_K512
+  python -m purevqgan.train --dataset cifar10 --img_size 32 --latent_size 8 --variant A_c10_K512_L8      # -> repro/artifacts/purifier/A_c10_K512_L8/purifier.pt
   # codebook-capacity sweep point
-  python -m purevqgan.train --dataset cifar10 --num_codes 64 --out purifiers/cifar10_K64
+  python -m purevqgan.train --dataset cifar10 --num_codes 64 --variant B_c10_K64_L8
   # miniImageNet victim (84x84 -> 21x21 latent)
-  python -m purevqgan.train --dataset stl10 --img_size 84 --latent_size 21 --out purifiers/stl10_84_K512
+  python -m purevqgan.train --dataset stl10 --img_size 84 --latent_size 21 --variant E_stl10_K512_L21
   # smoke test on CPU
   python -m purevqgan.train --dataset fake --epochs 1 --batch_size 16 --base_ch 32 --out /tmp/pvq_smoke
 """
@@ -18,6 +18,7 @@ import argparse
 import json
 import math
 import os
+import re
 import time
 
 import numpy as np
@@ -28,13 +29,19 @@ from .data import load_images
 from .model import VQGAN, PatchDiscriminator, _torch_load, count_params
 
 
+# repo-root-relative so the default is the same from any working directory
+ARTIFACT_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'repro', 'artifacts', 'purifier')
+
+
 def get_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--dataset', default='cifar10', help="see purevqgan/data.py (e.g. cifar10, stl10, npy:x.npy, 'a+b')")
     p.add_argument('--data_root', default='./data')
     p.add_argument('--bw_experiment', default=None, help='for --dataset bw_poisoned:<pkl> / bw_prior:<pkl>')
     p.add_argument('--bw_tasknum', type=int, default=10, help='number of tasks in the split (20 for Tiny-ImageNet)')
-    p.add_argument('--out', required=True, help='output directory')
+    p.add_argument('--out', default=None, help='output directory (overrides --variant)')
+    p.add_argument('--variant', default=None,
+                   help=f'variant name; output goes to {ARTIFACT_ROOT}/<variant>/ (default name: <dataset>_K<codes>_L<latent>)')
     # architecture
     p.add_argument('--img_size', type=int, default=32)
     p.add_argument('--latent_size', type=int, default=8)
@@ -65,7 +72,11 @@ def get_args(argv=None):
     p.add_argument('--seed', type=int, default=0)
     p.add_argument('--resume', action='store_true', help='continue from <out>/last.pt if present')
     p.add_argument('--max_steps', type=int, default=0, help='stop early after N steps (debug)')
-    return p.parse_args(argv)
+    a = p.parse_args(argv)
+    if a.out is None:
+        slug = re.sub(r'[^A-Za-z0-9]+', '-', a.dataset.split(':')[0]).strip('-') or 'data'
+        a.out = os.path.join(ARTIFACT_ROOT, a.variant or f'{slug}_K{a.num_codes}_L{a.latent_size}')
+    return a
 
 
 def psnr(a01, b01):

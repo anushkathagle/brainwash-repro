@@ -11,13 +11,13 @@
 #SBATCH --time=12:00:00
 #
 # Train one PureVQ-GAN purifier (defense layer 1). Env-driven; see repro/defense/README_purevqgan.md.
-#   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=cifar10_K512 repro/defense/train_purifier.sbatch
-#   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=cifar10_K64,K=64 repro/defense/train_purifier.sbatch
-#   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=stl10_84_K512,PVQ_DATASET=stl10,IMG_SIZE=84,LATENT=21 \
+#   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=A_c10_K512_L8 repro/defense/train_purifier.sbatch
+#   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=B_c10_K64_L8,K=64 repro/defense/train_purifier.sbatch
+#   sbatch --account=<ACCT> --export=ALL,PVQ_TAG=E_stl10_K512_L21,PVQ_DATASET=stl10,IMG_SIZE=84,LATENT=21 \
 #          repro/defense/train_purifier.sbatch
 # Required: PVQ_TAG   Optional: PVQ_DATASET(cifar10) IMG_SIZE(32) LATENT(8) K(512) BASE_CH(128)
 #   NUM_RES_BLOCKS(1) GAN_WEIGHT(0.1) EPOCHS(100) BATCH(256) LR(4e-4) PVQ_SEED(0) EXTRA_ARGS("", e.g. "--restart_dead_codes 0")
-#   PVQ_ROOT(purifiers)  -> output in $PVQ_ROOT/$PVQ_TAG/purifier.pt  (resumable: re-submit to continue)
+#   PVQ_ROOT(repro/artifacts/purifier)  -> output in $PVQ_ROOT/$PVQ_TAG/purifier.pt  (PVQ_TAG = variant name)  (resumable: re-submit to continue)
 set -eo pipefail
 
 : "${PVQ_TAG:?set PVQ_TAG (e.g. cifar10_K512)}"
@@ -33,7 +33,7 @@ set -eo pipefail
 : "${LR:=4e-4}"
 : "${PVQ_SEED:=0}"
 : "${EXTRA_ARGS:=}"
-: "${PVQ_ROOT:=purifiers}"
+: "${PVQ_ROOT:=repro/artifacts/purifier}"
 
 : "${CONDA_SH:=/swst/apps/anaconda3/2021.05_gcc-8.5.0/etc/profile.d/conda.sh}"   # Roar Collab base anaconda
 if [ -f "${CONDA_SH}" ]; then source "${CONDA_SH}"; else module load anaconda3 2>/dev/null || module load anaconda 2>/dev/null || true; eval "$(conda shell.bash hook)"; fi

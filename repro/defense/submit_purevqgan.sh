@@ -3,16 +3,16 @@
 #
 # Re-uses the BrainWash noise already produced by repro/sweep (stage 3) and repro/defense/stage4_layer1b.sbatch (a copy of
 # stage4.sbatch that runs purify_layer1b.py), with PURIFIER set, so the only thing that differs from the baseline is the purifier.
-# Results go to repro/defense/results/<base_tag>__pvq-<purifier_tag>.log ; compare with
+# Results go to repro/sweep/purevq_results/<base_tag>__pvq-<purifier_tag>.log ; compare with
 #   python repro/defense/collect_defense.py
 #
 # USAGE
-#   ACCT=<acct> PURIFIERS="purifiers/cifar10_K512/purifier.pt" repro/defense/submit_purevqgan.sh [dataset] [method]
+#   ACCT=<acct> PURIFIERS="repro/artifacts/purifier/A_c10_K512_L8/purifier.pt" repro/defense/submit_purevqgan.sh [dataset] [method]
 # EXAMPLES
-#   DRY_RUN=1 ACCT=gvresearch_cr_default PURIFIERS="purifiers/cifar10_K512/purifier.pt" \
+#   DRY_RUN=1 ACCT=gvresearch_cr_default PURIFIERS="repro/artifacts/purifier/A_c10_K512_L8/purifier.pt" \
 #       repro/defense/submit_purevqgan.sh cifar100 ewc
 #   # codebook-capacity sweep (RQ1 strength axis), cautious attacker only, 5 seeds:
-#   PURIFIERS="$(ls purifiers/cifar10_K*/purifier.pt)" MODES="clean cautious" SEEDS="0 1 2 3 4" \
+#   PURIFIERS="$(ls repro/artifacts/purifier/*/purifier.pt)" MODES="clean cautious" SEEDS="0 1 2 3 4" \
 #       ACCT=... repro/defense/submit_purevqgan.sh cifar100
 #
 # ENV: ACCT(req) PURIFIERS(req, space-separated purifier.pt paths) GRES(gpu:a100:1) PART(standard)
@@ -35,7 +35,7 @@ cd "$(dirname "$0")/../.."          # -> repo root
 : "${DRY_RUN:=0}"
 FILTER_DS="${1:-}"; FILTER_M="${2:-}"
 CONF="repro/sweep/configs.tsv"
-RES="repro/defense/results"
+RES="repro/sweep/purevq_results"
 mkdir -p logs "${RES}"
 
 submit() {

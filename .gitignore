@@ -14,8 +14,7 @@ data/
 repro/artifacts/
 repro/sweep/noise/
 repro/sweep/results/
-repro/defense/results/
-purifiers/
+repro/sweep/purevq_results/
 *.pkl
 *.npz
 *.npy

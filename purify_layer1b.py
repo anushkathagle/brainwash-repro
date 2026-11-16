@@ -47,7 +47,7 @@ tstart = time.time()
 # >>> LAYER1B: defaults + the two purification helpers. Both take (args, xtrain, xtrain_clean): xtrain is the
 # poisoned (or uniform-noised, or clean) task-T training set exactly as the original code builds it, xtrain_clean
 # the same images in the same order WITHOUT noise, used only to report how much perturbation survives.
-DEFAULT_OUT_DIR = './layer1b_results'
+DEFAULT_OUT_DIR = 'repro/sweep/purevq_results/layer1b_out'
 
 
 def _report_str(rep):

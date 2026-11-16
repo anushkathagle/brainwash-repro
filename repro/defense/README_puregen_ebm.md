@@ -35,6 +35,6 @@ Then (defended run; for the undefended reference drop the EBM_* variables):
 sbatch --account=$ACCT --gres=gpu:a100:1 --export=ALL,EVAL_TAG=cifar100_ewc_cautious_eps0.1__ebm_eps0.025_s100,VARIANT=ours,\
 EXPERIMENT=split_cifar100,APPROACH=ewc,LAMB=500000,NOISE_TAG=cifar100_ewc_cautious_eps0.1,\
 EBM_STEPS=100,EBM_EPS=0.025,EBM_PATH=$HOME/puregen_ebm_weights,PUREGEN_REPO=$HOME/PureGen_PoisonDefense,\
-RESULTS_DIR=repro/defense/results repro/defense/stage4_layer1b.sbatch
+RESULTS_DIR=repro/sweep/purevq_results repro/defense/stage4_layer1b.sbatch
 ```
 Not yet tested on torch 1.12 (only on torch 2.x); if the EBM load fails there, `safetensors`/`huggingface_hub` versions are the first suspects.

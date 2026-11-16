@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Collect PureVQ-GAN-defended BrainWash results and compare them to the undefended baseline.
 
-Reads  repro/defense/results/<base>__pvq-<ptag>.log   (defended, from submit_purevqgan.sh)
+Reads  repro/sweep/purevq_results/<base>__pvq-<ptag>.log   (defended, from submit_purevqgan.sh)
 and    repro/sweep/results/<base>.log                (undefended, from the attack sweep)
 where <base> = <ds>_<method>_<mode>[_eps<e>][_s<seed>].
 
@@ -22,7 +22,7 @@ import re
 import statistics
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEF_DIR = os.path.join(HERE, "results")
+DEF_DIR = os.path.join(HERE, "..", "sweep", "purevq_results")
 BASE_DIR = os.path.join(HERE, "..", "sweep", "results")
 
 BASE_RE = re.compile(

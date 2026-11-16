@@ -90,30 +90,31 @@ perturbation through. That tension is exactly what the RQ1 strength sweep measur
 ## 2. Workflow on Roar Collab
 
 The existing `brainwash` env (py3.10, torch 1.12.1) is enough. No new dependencies.
-Purifiers go in `purifiers/<tag>/` (git-ignored). Symlink that to `/storage/work` like the noise.
+Purifiers go in `repro/artifacts/purifier/<variant>/purifier.pt` (git-ignored: `repro/artifacts/`), one subfolder per variant
+(e.g. `A_c10_K512_L8`). Symlink the folder to `/storage/work` like the noise if home quota is tight.
 
 ```bash
 # ---- 1. train purifiers (≈ 1 A100 each; resumable — just re-submit) ----
-sbatch --account=$ACCT --export=ALL,PVQ_TAG=cifar10_K512 repro/defense/train_purifier.sbatch
+sbatch --account=$ACCT --export=ALL,PVQ_TAG=A_c10_K512_L8 repro/defense/train_purifier.sbatch
 # RQ1 strength axis = codebook capacity:
 for K in 64 128 256 1024; do
-  sbatch --account=$ACCT --export=ALL,PVQ_TAG=cifar10_K$K,K=$K repro/defense/train_purifier.sbatch
+  sbatch --account=$ACCT --export=ALL,PVQ_TAG=B_c10_K${K}_L8,K=$K repro/defense/train_purifier.sbatch
 done
 # miniImageNet purifier:
-sbatch --account=$ACCT --export=ALL,PVQ_TAG=stl10_84_K512,PVQ_DATASET=stl10,IMG_SIZE=84,LATENT=21 \
+sbatch --account=$ACCT --export=ALL,PVQ_TAG=E_stl10_K512_L21,PVQ_DATASET=stl10,IMG_SIZE=84,LATENT=21 \
        repro/defense/train_purifier.sbatch
-# check: purifiers/<tag>/train_log.jsonl (val_psnr, codes_used, perplexity), samples_eXXX.png (top: input, bottom: recon)
+# check: repro/artifacts/purifier/<variant>/train_log.jsonl (val_psnr, codes_used, perplexity), samples_eXXX.png (top: input, bottom: recon)
 
 # ---- 2. cheap pre-screen: how much BrainWash perturbation survives each purifier (seconds, no CL) ----
-python -m purevqgan.purify --purifier purifiers/cifar10_K512/purifier.pt --experiment split_cifar100 \
+python -m purevqgan.purify --purifier repro/artifacts/purifier/A_c10_K512_L8/purifier.pt --experiment split_cifar100 \
     --noise_pkl "$(ls -t repro/sweep/noise/cifar100_ewc_cautious_eps0.1/*.pkl | head -1)"
 
 # ---- 3. defended stage-4 evaluations (reuses the attack sweep's noise) ----
-DRY_RUN=1 ACCT=$ACCT PURIFIERS="purifiers/cifar10_K512/purifier.pt" repro/defense/submit_purevqgan.sh cifar100 ewc
-ACCT=$ACCT PURIFIERS="$(ls purifiers/cifar10_K*/purifier.pt)" MODES="clean cautious" \
+DRY_RUN=1 ACCT=$ACCT PURIFIERS="repro/artifacts/purifier/A_c10_K512_L8/purifier.pt" repro/defense/submit_purevqgan.sh cifar100 ewc
+ACCT=$ACCT PURIFIERS="$(ls repro/artifacts/purifier/*/purifier.pt)" MODES="clean cautious" \
     repro/defense/submit_purevqgan.sh cifar100
 # 5 seeds (proposal 4.7) — needs the attack noise for seeds 1-4 first (repro/sweep with SEEDS="1 2 3 4"):
-SEEDS="0 1 2 3 4" ACCT=$ACCT PURIFIERS=purifiers/cifar10_K512/purifier.pt repro/defense/submit_purevqgan.sh cifar100
+SEEDS="0 1 2 3 4" ACCT=$ACCT PURIFIERS=repro/artifacts/purifier/A_c10_K512_L8/purifier.pt repro/defense/submit_purevqgan.sh cifar100
 
 # ---- 4. results ----
 python repro/defense/collect_defense.py --csv defense_pvq.csv
@@ -123,7 +124,7 @@ Running one by hand is just the usual stage-4 command plus the purifier flags:
 ```bash
 python purify_layer1b.py --experiment split_cifar100 --approach ewc --lasttask 9 --tasknum 10 --nepochs 20 \
   --batch-size 16 --lr 0.01 --clip 100. --lamb 500000 --checkpoint <noise.pkl> --init_acc --addnoise \
-  --purifier purifiers/cifar10_K512/purifier.pt --purify_passes 1
+  --purifier repro/artifacts/purifier/A_c10_K512_L8/purifier.pt --purify_passes 1
 ```
 
 ### What each run logs
