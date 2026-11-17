@@ -43,12 +43,24 @@ submit() {
   sbatch "$@" >/dev/null
 }
 
+noise_exists() { compgen -G "repro/sweep/noise/$1/*.pkl" >/dev/null 2>&1; }
+pick_noise() {  # prints the first noise tag (of the arguments) whose noise dir holds a .pkl; fails with no output if none do
+  local t first="$1"
+  for t in "$@"; do
+    if noise_exists "$t"; then
+      [[ "$t" != "$first" ]] && echo "  [fallback] ${first} not found -> using ${t}" >&2
+      echo "$t"; return 0
+    fi
+  done
+  return 1
+}
+
 eval_one() {  # base_tag variant noise_tag seed purifier ptag
   local base="$1" variant="$2" ntag="$3" seed="$4" pur="$5" ptag="$6"
   local et="${base}__pvq-${ptag}"
   if grep -qs "After BWT" "${RES}/${et}.log"; then echo "  [skip] ${et} (done)"; return 0; fi
-  if ! compgen -G "repro/sweep/noise/${ntag}/*.pkl" >/dev/null 2>&1; then
-    echo "  [MISSING noise] ${ntag} -> skip ${et}"; return 0
+  if ! noise_exists "${ntag}"; then
+    echo "  [MISSING noise] ${ntag} (no fallback available either) -> skip ${et}"; return 0
   fi
   submit --account="${ACCT}" --partition="${PART}" --gres="${GRES}" --job-name="pvq_${et}" \
     --export=ALL,EVAL_TAG="${et}",VARIANT="${variant}",EXPERIMENT="${experiment}",APPROACH="${method}",LAMB="${lamb}",LAMB_EMP="${lamb_emp}",LASTTASK="${lasttask}",TASKNUM="${tasknum}",NOISE_TAG="${ntag}",SEED="${seed}",PURIFIER="${pur}",PURIFY_PASSES="${PURIFY_PASSES}",RESULTS_DIR="${RES}" \
@@ -72,14 +84,26 @@ for pur in ${PURIFIERS}; do
         for mode in ${MODES}; do
           case "${mode}" in
             cautious|reckless) eval_one "${dshort}_${method}_${mode}_eps${eps}${sfx}" ours "${dshort}_${method}_${mode}_eps${eps}${sfx}" "${seed}" "${pur}" "${ptag}" ;;
-            uniform)           eval_one "${dshort}_${method}_uniform_eps${eps}${sfx}" uniform "${dshort}_${method}_reckless_eps${eps}${sfx}" "${seed}" "${pur}" "${ptag}" ;;
+            uniform)  # only the noise file's checkpoint and delta (= eps) matter: prefer reckless, else the cautious file of the SAME eps
+                      utag=$(pick_noise "${dshort}_${method}_reckless_eps${eps}${sfx}" "${dshort}_${method}_cautious_eps${eps}${sfx}") || utag="${dshort}_${method}_reckless_eps${eps}${sfx}"
+                      eval_one "${dshort}_${method}_uniform_eps${eps}${sfx}" uniform "${utag}" "${seed}" "${pur}" "${ptag}" ;;
           esac
         done
         last_eps="${eps}"
       done
-      # clean (no attack) + purifier = the utility cost of purification; any noise pkl of this method works
+      # clean (no attack) + purifier = the utility cost of purification. The noise pkl is only used for its victim checkpoint
+      # (nothing is added to the images), so ANY noise file of this dataset/method/seed works. Preference: reckless (last eps,
+      # then the other eps), then cautious (same order).
       if [[ " ${MODES} " == *" clean "* ]]; then
-        eval_one "${dshort}_${method}_clean${sfx}" clean "${dshort}_${method}_reckless_eps${last_eps}${sfx}" "${seed}" "${pur}" "${ptag}"
+        clean_cands=()
+        for kind in reckless cautious; do
+          clean_cands+=("${dshort}_${method}_${kind}_eps${last_eps}${sfx}")
+          for e in ${EPSILONS}; do
+            if [[ "${e}" != "${last_eps}" ]]; then clean_cands+=("${dshort}_${method}_${kind}_eps${e}${sfx}"); fi
+          done
+        done
+        ctag=$(pick_noise "${clean_cands[@]}") || ctag="${clean_cands[0]}"
+        eval_one "${dshort}_${method}_clean${sfx}" clean "${ctag}" "${seed}" "${pur}" "${ptag}"
       fi
     done
   done < "${CONF}"
