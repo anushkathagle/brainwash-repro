@@ -6,6 +6,7 @@
 #   seed 0 -> no suffix, seed N -> _sN   (same convention as submit_sweep_purify.sh)
 #   e.g. tiny20_rwalk_cautious_eps0.3_s2
 # APPROACH / LAMB / LAMB_EMP / EVAL_TAG are filled in by stage4_purify_tiny.sbatch
+# (and explicitly blanked on submit, so stray exported values in your shell cannot leak in)
 # from the noise pkl, so they are never typed here.
 #
 # EXAMPLES
@@ -49,7 +50,7 @@ submit_one() {  # variant noise_tag seed
     echo "  [MISSING] ${tag}  -- no pkl in repro/sweep/noise/${ntag}/ (stage 3 not finished?)"; n_skip=$((n_skip+1)); return
   fi
   local cmd=(sbatch --account="${ACCT}" --time="${TIME}" --job-name="p64_${tag:0:40}"
-             --export=ALL,VARIANT="${variant}",NOISE_TAG="${ntag}",SEED="${seed}",SIGMA_STAR="${SIGMA_STAR}"
+             --export=ALL,EVAL_TAG=,APPROACH=,LAMB=,LAMB_EMP=,VARIANT="${variant}",NOISE_TAG="${ntag}",SEED="${seed}",SIGMA_STAR="${SIGMA_STAR}"
              stage4_purify_tiny.sbatch)
   if [[ "${DRY_RUN}" == "1" ]]; then
     echo "  [dry-run] ${cmd[*]}"
