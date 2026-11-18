@@ -65,6 +65,7 @@ set -eo pipefail
 if [ -f "${CONDA_SH}" ]; then source "${CONDA_SH}"; else module load anaconda3 2>/dev/null || module load anaconda 2>/dev/null || true; eval "$(conda shell.bash hook)"; fi
 : "${ENV_PREFIX:=/storage/home/axt5884/work/conda/myworkflow}"
 conda activate "${ENV_PREFIX}"
+echo "[stage4_purify_tiny] conda env: ${CONDA_PREFIX:-?}  (ENV_PREFIX=${ENV_PREFIX})  python: $(command -v python)  account: ${SLURM_JOB_ACCOUNT:-?}"
 python -c "import torch" >/dev/null 2>&1 || { echo "FATAL: torch unavailable after activating ${ENV_PREFIX}"; exit 99; }
 
 export PYTHONPATH="${ID_PATH}:${PYTHONPATH:-}"
