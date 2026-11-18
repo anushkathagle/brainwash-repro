@@ -161,3 +161,17 @@ gets overwritten.
   checkpoint save/load, the stage-4 hook, the sweep dry-run, the collector). **It has not yet been
   trained at full scale on CIFAR-10 or run on the cluster.** Check `train_log.jsonl` on the first
   real run before launching sweeps.
+
+## Training a purifier on STL-10 (for miniImageNet / Tiny-ImageNet)
+STL-10's 100k unlabeled 96×96 images are a generic prior for the ImageNet-based splits. They come from ImageNet, so they may
+share classes with the victim (unlabeled, so they can't be filtered). Say so in the thesis.
+
+1. **Prepare once** (`repro/defense/prepare_stl10.py`): downloads ~2.5 GB, resizes, writes one `(N,3,S,S)` uint8 `.npy` plus a
+   `_preview.png` and a `.json` with its sha256.
+   - Colab: `python repro/defense/prepare_stl10.py --img_size 84 --max_images 50000 --out /content/drive/MyDrive/datasets/stl10_unl50k_84.npy`
+   - Roar (login node, compute nodes are offline): add `--cache_dir /storage/work/$USER/stl10_cache` and write `--out` under `/storage/work`.
+   - Use `--img_size 84` for miniImageNet, `64` for Tiny-ImageNet.
+2. **Train**: `python -m purevqgan.train --dataset npy:<file> --img_size 84 --latent_size 21 --variant E_stl10_K512_L21 --amp --resume`
+   (Tiny-ImageNet: `--img_size 64 --latent_size 16`). Time 50 steps first with `--max_steps 50` to check memory and speed.
+3. **Move to Roar**: copy the variant folder to `repro/artifacts/purifier/<variant>/`, then check it loads under the cluster's torch:
+   `python -c "from purevqgan import load_purifier; print(load_purifier('repro/artifacts/purifier/<variant>/purifier.pt','cpu').config)"`

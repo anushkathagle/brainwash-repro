@@ -147,4 +147,4 @@ def load_images(spec, img_size, root='./data', bw_experiment=None, n_fake=512, b
             raise ValueError(f'unknown dataset spec {s!r}')
         parts.append(resize_uint8(x, img_size))
         print(f'[data] {s}: {tuple(parts[-1].shape)}')
-    return torch.cat(parts)
+    return parts[0] if len(parts) == 1 else torch.cat(parts)   # avoid a second full-size copy for a single source
