@@ -11,6 +11,7 @@ Layer-2 lives in this folder.
 | `friends_layer2.py` | the stage-4 script (a fork of `main_baselines.py`); all options are flags, see its header |
 | `validate_friends.py` | checks V1, V2, V4, V5, V6, V7 |
 | `colab_helpers.py` | the run loop and result tables shared by the notebooks |
+| `friends_p1.py`, `friends_layer2_p1.py` | **P1 (experimental, not the paper's method):** eta keeps head T's prediction but disturbs the shared features (`--p1_beta`). Separate copies, so the FRIENDS code above is unchanged; archive them if P1 is dropped |
 | `notebooks/` | the Colab notebooks (below) |
 
 ## Notebooks
@@ -25,6 +26,7 @@ commit when re-run, so a change pushed here is picked up by re-running the "Code
 | `2_option_a_features.ipynb` | option (a): friendly noise preserves the shared 1024-d features (`--friendly_target features`) |
 | `3_option_b_warmup2.ipynb` | option (b): the paper's Algorithm 2 (warm-up 2, eta preserves head T); eta-optimizer settings; BatchNorm control |
 | `4_option_c_warmup0.ipynb` | option (c): eta from the checkpoint (warm-up 0) |
+| `5_option_p1.ipynb` | P1: beta sweep at warm-up 2 and 0, clean cost, and a check that head T's prediction was kept |
 
 Results: one Drive folder per attack strength, `layer2_runs/layer2_defense_eps<EPS>`, shared by notebooks 2-4
 (`A_clean` / `B_poison` run once; an arm with a finished log is skipped, so a disconnected Colab is simply re-run).
