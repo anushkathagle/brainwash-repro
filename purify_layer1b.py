@@ -59,6 +59,9 @@ def purify_task_data_pvq(args, xtrain, xtrain_clean):
     from purevqgan import load_purifier, purify_tensor
     from purevqgan.purify import perturbation_report
     G = load_purifier(args.purifier, device='cuda')
+    if G.config['img_size'] != xtrain.shape[-1]:
+        raise SystemExit(f"[LAYER1B] purifier {args.purifier} was trained at {G.config['img_size']}x{G.config['img_size']} but "
+                         f"the task images are {xtrain.shape[-1]}x{xtrain.shape[-1]}; train one at this resolution")
     print(f'[LAYER1B] PureVQ-GAN purifying with {args.purifier} (passes={args.purify_passes}, config={G.config})')
     t0 = time.time()
     x_pure = purify_tensor(G, xtrain, passes=args.purify_passes)

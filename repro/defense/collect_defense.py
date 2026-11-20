@@ -26,7 +26,7 @@ DEF_DIR = os.path.join(HERE, "..", "sweep", "purevq_results")
 BASE_DIR = os.path.join(HERE, "..", "sweep", "results")
 
 BASE_RE = re.compile(
-    r"^(?P<ds>cifar100|mini|tiny)_(?P<m>afec_ewc|ewc|mas|rwalk)_"
+    r"^(?P<ds>cifar100|mini|tiny\d*)_(?P<m>afec_ewc|ewc|mas|rwalk)_"
     r"(?P<mode>clean|uniform|cautious|reckless)(?:_eps(?P<eps>0\.\d+))?(?:_s(?P<seed>\d+))?$"
 )
 AFTER_RE = re.compile(

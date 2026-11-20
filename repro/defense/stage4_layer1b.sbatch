@@ -48,7 +48,7 @@ set -eo pipefail
 : "${VARIANT:?set VARIANT (clean|uniform|ours)}"
 : "${EXPERIMENT:?set EXPERIMENT (split_cifar100|split_mini_imagenet|split_tiny_imagenet)}"
 : "${APPROACH:?set APPROACH (ewc|mas|rwalk|afec_ewc)}"
-: "${LAMB:?set LAMB}"
+: "${LAMB:=auto}"          # "auto" = read lambda (and lambda_emp) from the noise pkl's victim checkpoint
 : "${NOISE_TAG:?set NOISE_TAG (noise dir under repro/sweep/noise/)}"
 
 # robust conda activation (batch name-resolution can silently no-op -> "No module named torch")
@@ -64,6 +64,21 @@ mkdir -p logs "${RESULTS_DIR}"
 # locate the noise pkl (newest = best/final for that config)
 NOISE_PKL=$(ls -t "repro/sweep/noise/${NOISE_TAG}"/*.pkl 2>/dev/null | head -1 || true)
 [[ -n "${NOISE_PKL}" && -f "${NOISE_PKL}" ]] || { echo "MISSING noise pkl in repro/sweep/noise/${NOISE_TAG}/ (run stage 3 first)"; exit 2; }
+
+# LAMB/LAMB_EMP=auto (used for Tiny-ImageNet, which has no configs.tsv row): take them from the victim checkpoint stored in
+# the noise pkl. (With --checkpoint the CL code uses the checkpoint's lambda anyway; this keeps names and logs correct.)
+if [[ "${LAMB}" == "auto" || "${LAMB_EMP}" == "auto" ]]; then
+  read -r PKL_APPROACH PKL_LAMB PKL_LAMB_EMP < <(python - "${NOISE_PKL}" <<'PY'
+import pickle, sys
+a = pickle.load(open(sys.argv[1], 'rb'))['pretrained_ckpt']['cont_method_args']
+print(a.get('method', a.get('approach', '-')), a.get('lamb', '-'), a.get('lamb_emp', '-'))
+PY
+)
+  [[ "${LAMB}" == "auto" ]] && LAMB="${PKL_LAMB}"
+  [[ "${LAMB_EMP}" == "auto" ]] && LAMB_EMP="${PKL_LAMB_EMP}"
+  echo "[stage4-l1b] from noise pkl: approach=${PKL_APPROACH} lamb=${LAMB} lamb_emp=${LAMB_EMP}"
+  [[ "${PKL_APPROACH}" == "${APPROACH}" ]] || echo "[stage4-l1b] WARNING: APPROACH=${APPROACH} but the pkl says ${PKL_APPROACH}"
+fi
 
 # variant -> noise flags
 case "${VARIANT}" in
