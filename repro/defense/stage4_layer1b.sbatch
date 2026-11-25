@@ -94,7 +94,10 @@ EMP_ARGS=""
 
 DEFENSE_ARGS=""
 [[ -n "${PURIFIER}" && -n "${EBM_STEPS}" ]] && { echo "set only one of PURIFIER / EBM_STEPS"; exit 2; }
-if [[ -n "${PURIFIER}" ]]; then
+if [[ -n "${CTRL_TRANSFORM:-}" ]]; then
+  [[ -n "${PURIFIER}${EBM_STEPS}" ]] && { echo "CTRL_TRANSFORM cannot be combined with PURIFIER / EBM_STEPS"; exit 2; }
+  DEFENSE_ARGS="--ctrl_transform ${CTRL_TRANSFORM} --ctrl_param ${CTRL_PARAM:?set CTRL_PARAM}"
+elif [[ -n "${PURIFIER}" ]]; then
   [[ -f "${PURIFIER}" ]] || { echo "MISSING purifier ${PURIFIER}"; exit 2; }
   DEFENSE_ARGS="--purifier ${PURIFIER} --purify_passes ${PURIFY_PASSES}"
 elif [[ -n "${EBM_STEPS}" ]]; then

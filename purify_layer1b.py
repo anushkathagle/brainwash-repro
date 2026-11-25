@@ -88,8 +88,24 @@ def purify_task_data_ebm(args, xtrain, xtrain_clean):
     return x_pure.to(xtrain.device, xtrain.dtype)
 
 
+def purify_task_data_ctrl(args, xtrain, xtrain_clean):
+    """Matched-distortion CONTROL (not a defense from the literature): a plain image transform (Gaussian blur, JPEG or
+    down/up-sampling) at a given strength. See repro/defense/matched_controls.py."""
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'repro', 'defense'))
+    from matched_controls import apply_transform, control_report
+    print(f'[LAYER1B] CONTROL transform {args.ctrl_transform} (param={args.ctrl_param})')
+    t0 = time.time()
+    x_t = apply_transform(xtrain, args.ctrl_transform, args.ctrl_param)
+    print(f'[LAYER1B] transformed {len(xtrain)} samples in {time.time() - t0:.1f}s')
+    print('[LAYER1B] Purification report : ' + _report_str(
+        control_report(xtrain_clean, xtrain, args.ctrl_transform, args.ctrl_param)))
+    return x_t.to(xtrain.device, xtrain.dtype)
+
+
 def defense_tag(args):
     """Short suffix naming the defense arm (used in acc_mat_*.npy / summary.tsv)."""
+    if getattr(args, 'ctrl_transform', None):
+        return f'ctrl-{args.ctrl_transform}{args.ctrl_param:g}'
     if args.purifier is not None:
         tag = args.purify_tag or os.path.basename(os.path.dirname(os.path.abspath(args.purifier)))
         return f'pvq-{tag}_p{args.purify_passes}'
@@ -325,8 +341,11 @@ def main(args):
         
         # >>> LAYER1B: purify xtrain (poisoned, uniform or clean, whichever arm this is). Sits AFTER the
         # rnd_idx_train permutation and the noise addition, so it is a pure input transform.
-        assert not (args.purifier is not None and args.ebm_purify), "choose one of --purifier / --ebm_purify"
-        if args.purifier is not None:
+        assert sum([args.purifier is not None, bool(args.ebm_purify), bool(args.ctrl_transform)]) <= 1, \
+            "choose one of --purifier / --ebm_purify / --ctrl_transform"
+        if args.ctrl_transform:
+            xtrain = purify_task_data_ctrl(args, xtrain, xtrain_clean)
+        elif args.purifier is not None:
             xtrain = purify_task_data_pvq(args, xtrain, xtrain_clean)
         elif args.ebm_purify:
             xtrain = purify_task_data_ebm(args, xtrain, xtrain_clean)
@@ -473,6 +492,9 @@ if __name__ == '__main__':
     _dp.add_argument('--ebm_temp', default=1e-4, type=float, help='Langevin temperature (authors: 1e-4)')
     _dp.add_argument('--ebm_eps', default=1.25e-2, type=float, help='Langevin step size (authors: 1.25e-2)')
     _dp.add_argument('--ebm_init_noise', default=0.0, type=float, help='Gaussian noise std ([-1,1] units) before the chain')
+    _dp.add_argument('--ctrl_transform', default=None, choices=['blur', 'jpeg', 'downup'],
+                     help='matched-distortion control instead of a purifier (repro/defense/matched_controls.py)')
+    _dp.add_argument('--ctrl_param', default=None, type=float, help='its strength: blur sigma | jpeg quality | downup size')
     _dp.add_argument('--out_dir', default=DEFAULT_OUT_DIR, type=str, help='where to write acc_mat_*.npy and summary.tsv')
     _defense_args, _remaining_argv = _dp.parse_known_args()
     sys.argv = [sys.argv[0]] + _remaining_argv
@@ -483,6 +505,8 @@ if __name__ == '__main__':
     # >>> LAYER1B
     for _k, _v in vars(_defense_args).items():
         setattr(args, _k, _v)
+    if args.ctrl_transform and args.ctrl_param is None:
+        raise SystemExit('--ctrl_transform needs --ctrl_param (calibrate it with repro/defense/matched_controls.py)')
     # <<< LAYER1B
     main(args)
     
