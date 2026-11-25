@@ -133,7 +133,7 @@ def main(args):
         order = np.arange(100)
         home = os.path.expanduser('~')
         mini_root = os.path.join(home, 'data', 'miniImagenet' )
-        data, taskcla, inputsize, task_order = generate_split_mini_imagenet_tasks(mini_root, task_num = args.tasknum,
+        data, taskcla, inputsize, task_order = generate_split_mini_imagenet_tasks(mini_root, task_num = args.tasknum, seed=args.seed,  # LAYER1A: seed passed through
                                                                     rnd_order=False, order=order)
 
     elif args.experiment == 'split_tiny_imagenet':
@@ -141,7 +141,7 @@ def main(args):
         home = os.path.expanduser('~')
         root_add = os.path.join(home, 'data', 'tiny-imagenet-200')
         dataset_file = './data/tiny_imagenet.npz'
-        data, taskcla, inputsize, task_order = generate_split_tiny_imagenet_tasks(task_num = args.tasknum,
+        data, taskcla, inputsize, task_order = generate_split_tiny_imagenet_tasks(task_num = args.tasknum, seed=args.seed,  # LAYER1A: seed passed through
                                                                     rnd_order=False, save_data=False,
                                                                     dataset_file=dataset_file,
                                                                     order=order, root_add=root_add)
