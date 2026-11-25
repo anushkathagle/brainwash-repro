@@ -118,6 +118,9 @@ def main(argv=None):
 
     x_all = load_images(args.dataset, args.img_size, root=args.data_root, bw_experiment=args.bw_experiment,
                        bw_tasknum=args.bw_tasknum)
+    # the BrainWash split loaders (bw_poisoned / bw_prior) reset the global RNG to seed 0; restore --seed
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
     perm = torch.randperm(len(x_all))
     n_val = min(args.val_size, len(x_all) // 10)
     xval, xtr = x_all[perm[:n_val]], x_all[perm[n_val:]]
