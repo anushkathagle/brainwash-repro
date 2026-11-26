@@ -2,7 +2,8 @@
 """Collect PureVQ-GAN-defended BrainWash results and compare them to the undefended baseline.
 
 Reads  repro/sweep/purevq_results/<base>__pvq-<ptag>.log   (defended, from submit_purevqgan.sh)
-and    repro/sweep/results/<base>.log                (undefended, from the attack sweep)
+and    repro/sweep/purevq_results/<base>__undef-fork.log  (undefended through the same seeded fork; UNDEFENDED=1)
+       falling back to repro/sweep/results/<base>.log  (undefended, original stage4.sbatch)
 where <base> = <ds>_<method>_<mode>[_eps<e>][_s<seed>].
 
 Per (dataset, method, mode, eps, purifier) it reports mean +/- std over seeds of:
@@ -97,7 +98,9 @@ def main():
         if d is None:
             g["incomplete"] += 1
             continue
-        bpath = os.path.join(BASE_DIR, base + ".log")
+        bpath = os.path.join(DEF_DIR, base + "__undef-fork.log")   # same seeded code path as the defended run
+        if not os.path.exists(bpath):
+            bpath = os.path.join(BASE_DIR, base + ".log")
         g["seeds"].append(int(m["seed"] or 0))
         g["def"].append(d)
         g["und"].append(parse_log(bpath) if os.path.exists(bpath) else None)

@@ -29,6 +29,9 @@
 #      tiny only: PREFIX(tiny20) METHODS(all found in the noise folders) TINY_EXPERIMENT(split_tiny_imagenet)
 #                 TINY_LASTTASK(19) TINY_TASKNUM(20)
 #      Anything else you export (ENV_PREFIX, NEPOCHS, ...) is passed through to the job unchanged.
+#      UNDEFENDED=1: submit the matching NO-DEFENSE runs through the same seeded fork (purify_layer1b.py), tagged
+#                    <base>__undef-fork; PURIFIERS is not needed. Use these as the undefended reference (collect_defense.py
+#                    prefers them over repro/sweep/results/), so defended and undefended runs share the same code and seeding.
 # The purifier tag is the name of the directory holding purifier.pt (the variant); passes!=1 adds _p<N>.
 # A purifier whose training resolution does not match the dataset (32 cifar100, 84 mini, 64 tiny) is skipped.
 # Seed handling matches repro/sweep: seed 0 = un-suffixed noise/eval tags, seed N>=1 = _s<N>.
@@ -37,7 +40,9 @@ set -eo pipefail
 cd "$(dirname "$0")/../.."          # -> repo root
 
 : "${ACCT:?set ACCT=<your SLURM account>}"
-: "${PURIFIERS:?set PURIFIERS=\"path/to/purifier.pt [...]\"}"
+: "${UNDEFENDED:=0}"
+if [[ "${UNDEFENDED}" == "1" ]]; then PURIFIERS="NONE"; fi
+: "${PURIFIERS:?set PURIFIERS=\"path/to/purifier.pt [...]\" (or UNDEFENDED=1)}"
 : "${GRES:=gpu:a100:1}"
 : "${PART:=standard}"
 : "${TIME:=}"
@@ -86,13 +91,13 @@ cache_purifier_size() {  # fills PUR_SIZE[path] with img_size, or "?" if it cann
 
 eval_one() {  # base_tag variant noise_tag seed purifier ptag   (reads: experiment method lamb lamb_emp lasttask tasknum)
   local base="$1" variant="$2" ntag="$3" seed="$4" pur="$5" ptag="$6"
-  local et="${base}__pvq-${ptag}"
+  local et; if [[ "${UNDEFENDED}" == "1" ]]; then et="${base}__undef-fork"; else et="${base}__pvq-${ptag}"; fi
   if grep -qs "After BWT" "${RES}/${et}.log"; then echo "  [skip] ${et} (done)"; n_skip=$((n_skip+1)); return 0; fi
   if ! noise_exists "${ntag}"; then
     echo "  [MISSING noise] ${ntag} (no fallback available either) -> skip ${et}"; n_skip=$((n_skip+1)); return 0
   fi
-  submit --account="${ACCT}" --partition="${PART}" --gres="${GRES}" ${TIME:+--time="${TIME}"} --job-name="pvq_${et:0:60}" \
-    --export=ALL,EVAL_TAG="${et}",VARIANT="${variant}",EXPERIMENT="${experiment}",APPROACH="${method}",LAMB="${lamb}",LAMB_EMP="${lamb_emp}",LASTTASK="${lasttask}",TASKNUM="${tasknum}",NOISE_TAG="${ntag}",SEED="${seed}",PURIFIER="${pur}",PURIFY_PASSES="${PURIFY_PASSES}",RESULTS_DIR="${RES}" \
+  submit --account="${ACCT}" --partition="${PART}" --gres="${GRES}" ${TIME:+--time="${TIME}"} --job-name="l1b_${et:0:60}" \
+    --export=ALL,EVAL_TAG="${et}",VARIANT="${variant}",EXPERIMENT="${experiment}",APPROACH="${method}",LAMB="${lamb}",LAMB_EMP="${lamb_emp}",LASTTASK="${lasttask}",TASKNUM="${tasknum}",NOISE_TAG="${ntag}",SEED="${seed}",PURIFIER="${pur#NONE}",PURIFY_PASSES="${PURIFY_PASSES}",RESULTS_DIR="${RES}" \
     repro/defense/stage4_layer1b.sbatch
   echo "  [submit] ${et}  (variant=${variant}, noise=${ntag})"
   n_sub=$((n_sub+1))
@@ -100,8 +105,10 @@ eval_one() {  # base_tag variant noise_tag seed purifier ptag   (reads: experime
 
 run_group() {  # dshort  (reads globals: experiment method lamb lamb_emp lasttask tasknum pur ptag)
   local dshort="$1" seed sfx eps mode utag ctag kind e
-  local want; want=$(expected_size "${experiment}"); cache_purifier_size "${pur}"; local have="${PUR_SIZE[$pur]}"
-  if [[ "${have}" == "?" ]]; then
+  local want; want=$(expected_size "${experiment}"); local have="-"
+  if [[ "${UNDEFENDED}" != "1" ]]; then cache_purifier_size "${pur}"; have="${PUR_SIZE[$pur]}"; fi
+  if [[ "${have}" == "-" ]]; then :
+  elif [[ "${have}" == "?" ]]; then
     echo "  [warn] could not read ${pur} here (no torch?) -- not checking its resolution (expected ${want})"
   elif [[ -n "${want}" && "${have}" != "${want}" ]]; then
     echo "  [SKIP purifier] ${ptag} was trained at ${have}x${have}, but ${experiment} needs ${want}x${want}"; return 0
@@ -147,8 +154,11 @@ tiny_methods() {  # methods that have at least one noise folder ${PREFIX}_<metho
 }
 
 for pur in ${PURIFIERS}; do
-  [[ -f "${pur}" ]] || { echo "MISSING purifier ${pur}"; exit 2; }
-  ptag="$(basename "$(dirname "${pur}")")"
+  if [[ "${UNDEFENDED}" == "1" ]]; then ptag="undefended"
+  else
+    [[ -f "${pur}" ]] || { echo "MISSING purifier ${pur}"; exit 2; }
+    ptag="$(basename "$(dirname "${pur}")")"
+  fi
   [[ "${PURIFY_PASSES}" != "1" ]] && ptag="${ptag}_p${PURIFY_PASSES}"
 
   if [[ "${FILTER_DS}" == "tiny" ]]; then
